@@ -8,6 +8,9 @@
 ## 0. 演示前准备（开演前 5 分钟完成）
 
 ```bash
+# 终端 0：起 Postgres（首次 / 库没起时）
+docker compose up -d db
+
 # 终端 1：后端（4000）
 cd server && env -u NODE_OPTIONS npx tsx src/index.ts
 

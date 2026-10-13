@@ -4,7 +4,7 @@
 
 - 设计文档：[`DESIGN.md`](./DESIGN.md)（业务理解、数据模型、业务规则、页面草图、切片理由）
 - 前端：React + TypeScript + Vite
-- 后端：Express + TypeScript + Prisma + SQLite
+- 后端：Express + TypeScript + Prisma + PostgreSQL
 - 时区：统一 `Australia/Melbourne`
 
 ---
@@ -37,15 +37,17 @@
 
 ## 如何运行
 
-> 需要 Node.js 18+。数据库用 SQLite，零外部依赖，本地即可跑。
+> 需要 Node.js 18+ 与 Docker（本地起 Postgres 用）。
 
 ```bash
+# 0. 起 Postgres（根目录，端口 5433）
+docker compose up -d db
+
 # 1. 后端
 cd server
-cp .env.example .env          # 首次运行
-npm install
+cp .env.example .env          # 首次运行（默认已指向本地 Postgres）
+npm install                   # 会自动 prisma generate
 npx prisma migrate deploy     # 建表（含 CHECK 约束）
-npx prisma generate
 npm run db:seed               # 写入演示数据
 npm run dev                   # 启动 http://localhost:4000
 
@@ -55,7 +57,7 @@ npm install
 npm run dev                   # 启动 http://localhost:5173（被占用会自动换端口）
 ```
 
-打开前端地址即可登录。
+打开前端地址即可登录。若想彻底重置本地数据库：`docker compose down -v && docker compose up -d db && npx prisma migrate deploy && npm run db:seed`。
 
 ### 演示账号（密码统一 `password123`）
 
