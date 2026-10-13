@@ -11,6 +11,8 @@ node_modules/
 server/dist/
 web/dist/
 *.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
 
 # Env / secrets — NEVER commit keys
 .env
