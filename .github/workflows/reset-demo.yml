@@ -1,0 +1,35 @@
+name: Reset demo data
+
+# 作用：线上 Neon 数据库的演示数据保鲜。
+#   - seed.ts 生成的「今日课程」是相对执行日的绝对日期，跨天后会过期；
+#   - 演示操作（报名/扣课时/改状态）会污染数据。
+# 两者都靠「重新 seed」解决：每天定时重置 + 手动一键重置。
+
+on:
+  schedule:
+    # UTC 21:00 = Melbourne(AEDT) 08:00 / Melbourne(AEST) 07:00，每天早上自动重置
+    - cron: "0 21 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Seed demo data
+        working-directory: server
+        env:
+          # Neon 直连串（去掉 &channel_binding=require，见 DEPLOY.md），在仓库 Settings → Secrets → Actions 配置
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: npm run db:seed
