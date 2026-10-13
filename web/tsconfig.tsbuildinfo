@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/api.ts","./src/auth.tsx","./src/main.tsx","./src/types.ts","./src/components/appshell.tsx","./src/components/ui.tsx","./src/pages/admindashboard.tsx","./src/pages/classes.tsx","./src/pages/lessondetail.tsx","./src/pages/login.tsx","./src/pages/studentdetail.tsx","./src/pages/students.tsx","./src/pages/teacherdashboard.tsx"],"version":"5.9.3"}

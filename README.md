@@ -112,12 +112,9 @@ npm run dev                   # 启动 http://localhost:5173（被占用会自�
 
 ## 部署（可选）
 
-前端是纯静态站，后端是无状态 API + SQLite 文件，都可一键部署：
+本地跑通即可满足要求。若要上线，完整步骤见 **[`DEPLOY.md`](./DEPLOY.md)**（Vercel 部署 + SQLite 换 Postgres）。
 
-- 前端 → Vercel / Netlify，构建命令 `npm run build`，产物目录 `web/dist`。
-- 后端 → Render / Fly.io，`npm run build && npm start`；SQLite 建议换成 Postgres（`server/.env` 改 `DATABASE_URL`，schema 无需改动）。
-
-本地跑通即可满足要求。
+要点：前后端分离，部署为两个 Vercel 项目 + 一个 Neon Postgres；`server/src/app.ts` 同时供本地 `src/index.ts` 和 Vercel `api/index.ts` 复用，前端通过 `VITE_API_BASE_URL` 指向后端域名。
 
 ---
 

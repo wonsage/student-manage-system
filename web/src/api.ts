@@ -10,6 +10,9 @@ import type {
 const TOKEN_KEY = "sm_token";
 const USER_KEY = "sm_user";
 
+// 部署时指向后端域名；本地留空则走 Vite proxy（相对路径）。
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -47,7 +50,7 @@ async function request<T>(
   options: { method?: string; body?: unknown } = {}
 ): Promise<T> {
   const token = getToken();
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method: options.method ?? "GET",
     headers: {
       "Content-Type": "application/json",

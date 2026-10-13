@@ -10,6 +10,7 @@ node_modules/
 # Build output
 server/dist/
 web/dist/
+*.tsbuildinfo
 
 # Env / secrets — NEVER commit keys
 .env
