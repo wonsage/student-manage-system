@@ -9,12 +9,12 @@
 
 这家机构的本质是**预付费的线下小班培训**。核心资产不是"学生列表"，而是两样东西：**课（老师的时间）** 和 **课时（家长预付的钱）**。系统要管的，是这两样资产的流转与对应关系。
 
-| 角色 | 最关心什么 |
-|------|-----------|
+| 角色              | 最关心什么                           |
+| ----------------- | ------------------------------------ |
 | 课程顾问（admin） | 我的学生进展到哪、谁该跟进、谁要续费 |
-| 教务（admin） | 班和老师的排期有没有冲突 |
-| 老师（teacher） | 今天上什么课、班里都有谁、谁是新来的 |
-| 家长 / 学生 | 课时还剩多少、孩子每节课学得怎么样 |
+| 教务（admin）     | 班和老师的排期有没有冲突             |
+| 老师（teacher）   | 今天上什么课、班里都有谁、谁是新来的 |
+| 家长 / 学生       | 课时还剩多少、孩子每节课学得怎么样   |
 
 背景里"没明说但显然存在"的事实，是我建模的出发点：
 
@@ -64,16 +64,16 @@ User(ADMIN | TEACHER)
 
 ### 3.2 实体与关键字段
 
-| 实体 | 关键字段 | 说明 |
-|------|---------|------|
-| `User` | role, email, passwordHash | 统一账号，role 区分 admin / teacher |
-| `Student` | adminId, name, guardianName/Phone, status | status 状态机：LEAD → TRIAL_SCHEDULED → TRIAL_DONE → ENROLLED → CHURNED |
-| `Enrollment` | studentId, creditsTotal, creditsRemaining, status | **课时账户**，一次购买一条；ACTIVE / EXHAUSTED / REFUNDED |
-| `Class` | teacherId, dayOfWeek, startTime, endTime, capacity, status | 每周固定模板 |
-| `ClassEnrollment` | classId, studentId, status | 学生与班级多对多（一学生可同时在多班） |
-| `Lesson` | classId, date, status | 班级某天的具体实例，`UNIQUE(classId, date)` |
-| `Attendance` | lessonId, studentId, status, creditsDeducted | 出勤即扣课时凭证，`UNIQUE(lessonId, studentId)` |
-| `LessonFeedback` | lessonId, studentId, summary, generatedBy | 课堂反馈，`generatedBy ∈ {LLM, MANUAL}` |
+| 实体              | 关键字段                                                   | 说明                                                                    |
+| ----------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `User`            | role, email, passwordHash                                  | 统一账号，role 区分 admin / teacher                                     |
+| `Student`         | adminId, name, guardianName/Phone, status                  | status 状态机：LEAD → TRIAL_SCHEDULED → TRIAL_DONE → ENROLLED → CHURNED |
+| `Enrollment`      | studentId, creditsTotal, creditsRemaining, status          | **课时账户**，一次购买一条；ACTIVE / EXHAUSTED / REFUNDED               |
+| `Class`           | teacherId, dayOfWeek, startTime, endTime, capacity, status | 每周固定模板                                                            |
+| `ClassEnrollment` | classId, studentId, status                                 | 学生与班级多对多（一学生可同时在多班）                                  |
+| `Lesson`          | classId, date, status                                      | 班级某天的具体实例，`UNIQUE(classId, date)`                             |
+| `Attendance`      | lessonId, studentId, status, creditsDeducted               | 出勤即扣课时凭证，`UNIQUE(lessonId, studentId)`                         |
+| `LessonFeedback`  | lessonId, studentId, summary, generatedBy                  | 课堂反馈，`generatedBy ∈ {LLM, MANUAL}`                                 |
 
 ### 3.3 三个必须讲清楚的关系
 
@@ -82,6 +82,7 @@ User(ADMIN | TEACHER)
 **② 班级 ↔ 课：模板 → 实例（1:N）** —— `Class` 是"每周二 17:00 数学"的约定，`Lesson` 是"2026-10-20 那一堂"。系统把活跃班级物化为未来一段时间的 Lesson。"请假一周" = 该周 Lesson 置 CANCELLED；"补课" = 单独生成一条 Lesson。没有这个区分，请假、补课、调课都无法表达。
 
 **③ 课时怎么记录和扣减：账户 + 流水** ——
+
 - **记录**：`Enrollment` 是购买记录，`creditsRemaining` 是这条购买的剩余余额；一学生可多次购买，总余额 = 各 ACTIVE 之和。
 - **扣减**：老师记 PRESENT 时，在**同一事务**里对最早到期的 ACTIVE Enrollment 扣 1，用 `UPDATE ... WHERE creditsRemaining > 0` 保证不为负，扣到 0 置 EXHAUSTED。
 - **可追溯**：`Attendance.creditsDeducted` 记"这堂课扣了几个课时"；退费 = Enrollment 置 REFUNDED（余额冻结）。
@@ -90,15 +91,15 @@ User(ADMIN | TEACHER)
 
 ## 4. 必须强制执行的关键规则
 
-| # | 规则 | 执行层 |
-|---|------|--------|
-| 1 | **排课时间冲突**：同一天时段重叠的班，不能排同一学生 | 服务端（排班接口比对区间） |
-| 2 | **课时不足拦截**：余额 0 不能排班/记出勤，余额永不小于 0 | 服务端事务 + DB `CHECK(creditsRemaining >= 0)` |
-| 3 | **状态门槛**：只有 ENROLLED 可排正式班 | 服务端 |
-| 4 | **出勤唯一**：同一课同一学生只一条出勤，重复不重复扣 | DB `UNIQUE(lessonId, studentId)` + 幂等 |
-| 5 | **权限**：admin 可读全部、只写自己名下 | 中间件（role + adminId 校验） |
-| 6 | **班级容量**：满员拒绝，提示剩余名额 | 服务端事务内校验 |
-| 7 | **老师不重叠**：同一老师不能同时带两个重叠班 | 服务端（建班时校验） |
+| #   | 规则                                                     | 执行层                                         |
+| --- | -------------------------------------------------------- | ---------------------------------------------- |
+| 1   | **排课时间冲突**：同一天时段重叠的班，不能排同一学生     | 服务端（排班接口比对区间）                     |
+| 2   | **课时不足拦截**：余额 0 不能排班/记出勤，余额永不小于 0 | 服务端事务 + DB `CHECK(creditsRemaining >= 0)` |
+| 3   | **状态门槛**：只有 ENROLLED 可排正式班                   | 服务端                                         |
+| 4   | **出勤唯一**：同一课同一学生只一条出勤，重复不重复扣     | DB `UNIQUE(lessonId, studentId)` + 幂等        |
+| 5   | **权限**：admin 可读全部、只写自己名下                   | 中间件（role + adminId 校验）                  |
+| 6   | **班级容量**：满员拒绝，提示剩余名额                     | 服务端事务内校验                               |
+| 7   | **老师不重叠**：同一老师不能同时带两个重叠班             | 服务端（建班时校验）                           |
 
 第 2、4 条用数据库约束兜底（绕过接口也拦得住）；其余在服务端 service 层。**前端禁用按钮只是体验，不是保障。**
 
@@ -117,10 +118,10 @@ User(ADMIN | TEACHER)
 
 **最想问业务方的 5 个问题：**
 
-1. 学生请假/缺勤，课时退不退？还是算已消耗？
+1. 学生的试听课请假/缺勤应该如何处理？是否应该算已消耗？
 2. 课时有有效期吗？过期未用完怎么办？
 3. 一个学生能同时被多个顾问跟进吗？还是严格一对一？
-4. "课"的最小粒度是 1 小时吗？有没有连堂、1.5 小时课？
+4. 课程的最小粒度是 1 小时还是课时？有没有连堂大课、1.5 小时课？
 5. 续费决策人是谁——家长主动找顾问，还是系统触发提醒？
 
 ---
@@ -199,7 +200,7 @@ Teacher 课堂详情（点名 + 反馈，新学生标 ⭐）：
 
 ---
 
-## 7. Part B 切片的选择理由
+## 7. 为什么选择做这个切片
 
 选 **"报名 → 排进班级 → 上课记出勤并扣课时"**，理由：
 

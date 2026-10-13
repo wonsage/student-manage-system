@@ -102,6 +102,18 @@ npm run db:seed
 
 ---
 
+## 数据自动刷新（推荐，避免演示数据过期/被污染）
+
+seed 生成的「今日课程」是相对执行日的绝对日期，跨天后会过期；演示操作也会污染数据。仓库内置了 GitHub Actions 定时任务，**每天 Melbourne 早上自动重置 Neon**，也可手动一键重置。
+
+1. GitHub 仓库 → **Settings → Secrets and variables → Actions → New repository secret**：
+   - 名称 `NEON_DATABASE_URL`，值为 Neon **直连串**（去掉 `&channel_binding=require`，见下方「连接串兼容性」）。
+2. 无需其他配置——`push` 到默认分支后，`.github/workflows/reset-demo.yml` 自动生效（每天 UTC 21:00 跑一次）。
+3. 手动立即重置：GitHub → **Actions → Reset demo data → Run workflow**。
+4. 本地兜底：`./scripts/reset-demo.sh`（`server/.env` 指向 Neon 直连串时直接重置线上）。
+
+---
+
 ## 环境变量速查
 
 | 服务 | 变量 | 必填 |
