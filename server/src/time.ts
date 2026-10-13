@@ -31,6 +31,37 @@ export function melbourneDayOfWeek(): number {
   return map[dow];
 }
 
+/** Melbourne 本地日期（offsetDays 天后），格式 "YYYY-MM-DD"。 */
+export function melbourneDate(offsetDays = 0): string {
+  const d = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: MELBOURNE_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)!.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * 从今天起 horizonDays 天内，命中指定星期几（1=Mon .. 7=Sun）的 Melbourne 本地日期列表。
+ * 用于把班级「模板」物化为具体「课」实例（Lesson）。
+ */
+export function upcomingDatesForDayOfWeek(
+  dayOfWeek: number,
+  horizonDays: number
+): string[] {
+  const dates: string[] = [];
+  for (let offset = 0; offset <= horizonDays; offset++) {
+    const date = melbourneDate(offset);
+    const d = new Date(date + "T00:00:00Z");
+    const dow = ((d.getUTCDay() + 6) % 7) + 1; // 转 ISO-8601 1=Mon..7=Sun
+    if (dow === dayOfWeek) dates.push(date);
+  }
+  return dates;
+}
+
 /** "HH:MM" → 当天已过分钟数。 */
 export function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { HttpError } from "./middleware";
 import { timeToMinutes } from "./time";
@@ -101,26 +102,39 @@ export async function assertClassCapacity(classId: string) {
 }
 
 /**
- * 规则 #2（扣减核心）：在事务中扣 1 课时。
- * 用条件 UPDATE 保证余额不为负、且并发安全；扣完自动置 EXHAUSTED。
- * 返回实际扣减到的 enrollment（可能为 null 表示余额不足）。
+ * 规则 #2（扣减核心）：在给定事务中扣 1 课时。
+ *
+ * 并发安全靠「条件更新」而非「先查再改」：
+ * - findFirst 只负责选出「扣哪个账户」（FIFO，先扣最早买的）；
+ * - updateMany 的 WHERE 里带 `creditsRemaining > 0`，两个并发请求同时扣同一账户时，
+ *   第二个请求的条件更新 count=0 → 返回 null（课时不足），不会把余额扣成负数。
+ * 扣到 0 自动置 EXHAUSTED。
+ *
+ * 返回扣减后的 enrollment（null 表示余额不足）。
+ * 注意：必须由调用方在同一事务里完成「写出勤记录」，保证扣课时与出勤原子。
  */
-export async function deductOneCredit(studentId: string) {
-  return prisma.$transaction(async (tx) => {
-    const enrollment = await tx.enrollment.findFirst({
-      where: { studentId, status: "ACTIVE", creditsRemaining: { gt: 0 } },
-      orderBy: { purchasedAt: "asc" }, // 先扣最早买的
-    });
-    if (!enrollment) return null;
-
-    const updated = await tx.enrollment.update({
-      where: { id: enrollment.id },
-      data: {
-        creditsRemaining: { decrement: 1 },
-        status:
-          enrollment.creditsRemaining - 1 === 0 ? "EXHAUSTED" : "ACTIVE",
-      },
-    });
-    return updated;
+export async function deductOneCreditTx(
+  tx: Prisma.TransactionClient,
+  studentId: string
+) {
+  const enrollment = await tx.enrollment.findFirst({
+    where: { studentId, status: "ACTIVE", creditsRemaining: { gt: 0 } },
+    orderBy: { purchasedAt: "asc" }, // 先扣最早买的
   });
+  if (!enrollment) return null;
+
+  // 条件更新：仅当余额仍 > 0 时才扣，防并发扣成负数。
+  const decremented = await tx.enrollment.updateMany({
+    where: { id: enrollment.id, creditsRemaining: { gt: 0 } },
+    data: { creditsRemaining: { decrement: 1 } },
+  });
+  if (decremented.count === 0) return null; // 被并发扣光
+
+  // 扣到 0 自动置 EXHAUSTED
+  await tx.enrollment.updateMany({
+    where: { id: enrollment.id, creditsRemaining: 0, status: "ACTIVE" },
+    data: { status: "EXHAUSTED" },
+  });
+
+  return tx.enrollment.findUnique({ where: { id: enrollment.id } });
 }

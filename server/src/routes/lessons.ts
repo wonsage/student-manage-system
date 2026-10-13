@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { HttpError, requireAuth } from "../middleware";
-import { melbourneToday } from "../time";
-import { deductOneCredit } from "../rules";
+import { melbourneToday, melbourneDayOfWeek } from "../time";
+import { deductOneCreditTx } from "../rules";
 import { generateFeedbackDraft } from "../llm";
 
 export const lessonsRouter = Router();
@@ -12,13 +13,67 @@ lessonsRouter.use(requireAuth);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** 保证某班在某个日期存在一条 lesson（模板 → 实例的物化）。 */
+/** 保证某班在某个日期存在一条 lesson（模板 → 实例的物化），原子幂等。 */
 export async function ensureLesson(classId: string, date: string) {
-  const existing = await prisma.lesson.findUnique({
+  return prisma.lesson.upsert({
     where: { classId_date: { classId, date } },
+    update: {},
+    create: { classId, date },
   });
-  if (existing) return existing;
-  return prisma.lesson.create({ data: { classId, date } });
+}
+
+/**
+ * 在给定事务内为单个学生记录出勤。
+ * - 已有记录：只更新状态；此前未扣课时、现在改记 PRESENT 时补扣一次（防"先缺勤再改出勤"白上课）。
+ * - 无记录：扣课时（若 PRESENT）与写出勤在同一事务，任一步失败整体回滚。
+ * 返回 { attendance, deducted }。
+ */
+async function recordAttendance(
+  tx: Prisma.TransactionClient,
+  params: {
+    lessonId: string;
+    studentId: string;
+    status: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
+    recordedById: string;
+  }
+) {
+  const { lessonId, studentId, status, recordedById } = params;
+  const existing = await tx.attendance.findUnique({
+    where: { lessonId_studentId: { lessonId, studentId } },
+  });
+
+  if (existing) {
+    let creditsDeducted = existing.creditsDeducted;
+    let deducted = false;
+    // 此前未扣课时（如 ABSENT/LATE/EXCUSED），现在改记 PRESENT → 补扣一次
+    if (status === "PRESENT" && existing.creditsDeducted === 0) {
+      const enrollment = await deductOneCreditTx(tx, studentId);
+      if (!enrollment) {
+        throw new HttpError(409, "课时不足：该学生剩余课时为 0，无法记出勤");
+      }
+      creditsDeducted = 1;
+      deducted = true;
+    }
+    const updated = await tx.attendance.update({
+      where: { id: existing.id },
+      data: { status, creditsDeducted },
+    });
+    return { attendance: updated, deducted, created: false };
+  }
+
+  let creditsDeducted = 0;
+  if (status === "PRESENT") {
+    const enrollment = await deductOneCreditTx(tx, studentId);
+    if (!enrollment) {
+      throw new HttpError(409, "课时不足：该学生剩余课时为 0，无法记出勤");
+    }
+    creditsDeducted = 1;
+  }
+
+  const attendance = await tx.attendance.create({
+    data: { lessonId, studentId, status, creditsDeducted, recordedById },
+  });
+  return { attendance, deducted: creditsDeducted > 0, created: true };
 }
 
 // 列表：teacher 只看自己的课（默认今天）；admin 可选 date 查全部。
@@ -26,6 +81,20 @@ lessonsRouter.get("/", async (req, res, next) => {
   try {
     const me = req.user!;
     const date = (req.query.date as string) ?? melbourneToday();
+
+    // 懒物化：确保「今天」该上的 ACTIVE 班都有 lesson（新建班/数据跨天过期也能点名）。
+    if (date === melbourneToday()) {
+      const todayDow = melbourneDayOfWeek();
+      const activeClasses = await prisma.class.findMany({
+        where: {
+          status: "ACTIVE",
+          dayOfWeek: todayDow,
+          ...(me.role === "TEACHER" ? { teacherId: me.id } : {}),
+        },
+        select: { id: true },
+      });
+      await Promise.all(activeClasses.map((c) => ensureLesson(c.id, date)));
+    }
 
     const where: any = { date };
     if (me.role === "TEACHER") {
@@ -166,7 +235,7 @@ const attendanceSchema = z.object({
   status: z.enum(["PRESENT", "ABSENT", "LATE", "EXCUSED"]),
 });
 
-// 记录出勤（含扣课时）。规则 #2/#4：余额不足拒绝、同一课同一生只一条。
+// 记录出勤（含扣课时）。规则 #2/#4：余额不足拒绝、同一课同一生只一条、扣课时与出勤原子。
 lessonsRouter.post("/:id/attendances", async (req, res, next) => {
   try {
     const me = req.user!;
@@ -187,39 +256,30 @@ lessonsRouter.post("/:id/attendances", async (req, res, next) => {
       throw new HttpError(400, "该学生不在本班名单中");
     }
 
-    const existing = await prisma.attendance.findUnique({
-      where: { lessonId_studentId: { lessonId: lesson.id, studentId } },
-    });
-
-    if (existing) {
-      // 幂等：不重复扣课时，只更新状态。PRESENT 一旦扣过，改状态不退（退款是后续版本）。
-      const updated = await prisma.attendance.update({
-        where: { id: existing.id },
-        data: { status },
-      });
-      return res.json({ attendance: updated, deducted: false });
-    }
-
-    let creditsDeducted = 0;
-    if (status === "PRESENT") {
-      const enrollment = await deductOneCredit(studentId);
-      if (!enrollment) {
-        throw new HttpError(409, "课时不足：该学生剩余课时为 0，无法记出勤");
-      }
-      creditsDeducted = 1;
-    }
-
-    const attendance = await prisma.attendance.create({
-      data: {
+    // 扣课时 + 写出勤在同一事务；并发双击时第二个请求的 create 触发 UNIQUE 冲突、整事务回滚。
+    const result = await prisma.$transaction((tx) =>
+      recordAttendance(tx, {
         lessonId: lesson.id,
         studentId,
         status,
-        creditsDeducted,
         recordedById: me.id,
-      },
-    });
-    res.status(201).json({ attendance, deducted: creditsDeducted > 0 });
+      })
+    );
+
+    res
+      .status(result.created ? 201 : 200)
+      .json({ attendance: result.attendance, deducted: result.deducted });
   } catch (e) {
+    // 并发重复：另一请求已写入并扣费，本请求的扣费已随事务回滚，幂等返回。
+    if ((e as any)?.code === "P2002") {
+      const { studentId } = req.body as { studentId: string };
+      const existing = await prisma.attendance.findUnique({
+        where: {
+          lessonId_studentId: { lessonId: req.params.id, studentId },
+        },
+      });
+      return res.json({ attendance: existing, deducted: false });
+    }
     next(e);
   }
 });
@@ -242,43 +302,29 @@ lessonsRouter.post("/:id/attendance/mark-all", async (req, res, next) => {
       include: { student: true },
     });
 
-    const marked: string[] = [];
-    const skipped: string[] = [];
-
-    for (const m of members) {
-      const existing = await prisma.attendance.findUnique({
-        where: { lessonId_studentId: { lessonId: lesson.id, studentId: m.studentId } },
-      });
-      if (existing) {
-        if (existing.status !== "PRESENT") {
-          await prisma.attendance.update({
-            where: { id: existing.id },
-            data: { status: "PRESENT" },
-          });
-        }
-        marked.push(m.student.name);
-        continue;
-      }
-      try {
-        const enrollment = await deductOneCredit(m.studentId);
-        if (!enrollment) {
-          skipped.push(m.student.name);
-          continue;
-        }
-        await prisma.attendance.create({
-          data: {
+    // 整个点名流程放一个事务：任一学生扣课时/写出勤失败即整体回滚（余额不足的跳过）。
+    const { marked, skipped } = await prisma.$transaction(async (tx) => {
+      const marked: string[] = [];
+      const skipped: string[] = [];
+      for (const m of members) {
+        try {
+          await recordAttendance(tx, {
             lessonId: lesson.id,
             studentId: m.studentId,
             status: "PRESENT",
-            creditsDeducted: 1,
             recordedById: me.id,
-          },
-        });
-        marked.push(m.student.name);
-      } catch {
-        skipped.push(m.student.name);
+          });
+          marked.push(m.student.name);
+        } catch (e) {
+          if ((e as any)?.status === 409) {
+            skipped.push(m.student.name); // 课时不足
+          } else {
+            throw e;
+          }
+        }
       }
-    }
+      return { marked, skipped };
+    });
 
     res.json({ marked, skipped });
   } catch (e) {

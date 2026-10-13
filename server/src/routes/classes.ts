@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { HttpError, requireAuth, requireRole } from "../middleware";
-import { timeToMinutes } from "../time";
+import { timeToMinutes, upcomingDatesForDayOfWeek } from "../time";
 import {
   assertCanWriteStudent,
 } from "../middleware";
@@ -102,6 +102,16 @@ classesRouter.post("/", requireRole("ADMIN"), async (req, res, next) => {
       data,
       include: { teacher: { select: { id: true, name: true } } },
     });
+
+    // 预生成未来 4 周的课实例（否则新建班在老师端永远看不到、无法点名）。
+    const dates = upcomingDatesForDayOfWeek(cls.dayOfWeek, 28);
+    if (dates.length > 0) {
+      await prisma.lesson.createMany({
+        data: dates.map((date) => ({ classId: cls.id, date })),
+        skipDuplicates: true,
+      });
+    }
+
     res.status(201).json({ class: cls });
   } catch (e) {
     next(e);
