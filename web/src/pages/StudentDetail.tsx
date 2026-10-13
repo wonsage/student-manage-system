@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { Spinner, Modal, useToast, Empty } from "../components/ui";
-import type { ClassInfo, Student } from "../types";
-import { STATUS_LABELS } from "../types";
+import type { ClassInfo, CreditTransaction, FollowUp, FollowUpType, Student } from "../types";
+import { STATUS_LABELS, FOLLOWUP_TYPE_LABELS, CREDIT_TX_LABELS } from "../types";
 
 type DetailStudent = Student & {
   enrollments: {
@@ -16,6 +16,8 @@ type DetailStudent = Student & {
   }[];
   memberships: { class: ClassInfo }[];
   feedbacks: { id: string; summary: string; generatedBy: string; lesson: { class: { name: string } } }[];
+  followUps: FollowUp[];
+  creditTransactions: CreditTransaction[];
 };
 
 function timeOverlap(aS: string, aE: string, bS: string, bE: string) {
@@ -36,7 +38,11 @@ export function StudentDetail() {
   const [error, setError] = useState("");
   const [showEnroll, setShowEnroll] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showFollowUp, setShowFollowUp] = useState(false);
   const [credits, setCredits] = useState(20);
+  const [followType, setFollowType] = useState<FollowUpType>("CALL");
+  const [followContent, setFollowContent] = useState("");
+  const [followNextDate, setFollowNextDate] = useState("");
 
   const load = useCallback(() => {
     if (!id) return;
@@ -66,6 +72,24 @@ export function StudentDetail() {
     try {
       await api.addMember(classId, id!);
       toast("ok", `已将学生排进「${className}」`);
+      load();
+    } catch (e: any) {
+      toast("err", e.message);
+    }
+  };
+
+  const recordFollowUp = async () => {
+    if (!followContent.trim()) return;
+    try {
+      await api.recordFollowUp(id!, {
+        type: followType,
+        content: followContent.trim(),
+        nextFollowUpAt: followNextDate || undefined,
+      });
+      toast("ok", "已记录跟进");
+      setShowFollowUp(false);
+      setFollowContent("");
+      setFollowNextDate("");
       load();
     } catch (e: any) {
       toast("err", e.message);
@@ -118,6 +142,9 @@ export function StudentDetail() {
           >
             排进班级
           </button>
+          <button className="btn" onClick={() => setShowFollowUp(true)}>
+            记录跟进
+          </button>
         </div>
       </div>
 
@@ -139,7 +166,7 @@ export function StudentDetail() {
         </div>
 
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>课时记录</h3>
+          <h3 style={{ marginTop: 0 }}>课时账户</h3>
           {student.enrollments.length === 0 ? (
             <div className="muted small">暂无报名记录</div>
           ) : (
@@ -167,6 +194,61 @@ export function StudentDetail() {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      </div>
+
+      <div className="stats-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>课时流水</h3>
+          {student.creditTransactions.length === 0 ? (
+            <div className="muted small">暂无课时流水</div>
+          ) : (
+            student.creditTransactions.map((tx) => (
+              <div key={tx.id} className="ledger-row flex between">
+                <div>
+                  <div className="small">
+                    <b>{CREDIT_TX_LABELS[tx.type]}</b>
+                    {tx.lesson && (
+                      <span className="muted"> · {tx.lesson.class.name}</span>
+                    )}
+                  </div>
+                  <div className="small muted">
+                    {new Date(tx.createdAt).toLocaleDateString("zh-CN")} · 结余 {tx.balanceAfter}
+                    {tx.note ? ` · ${tx.note}` : ""}
+                  </div>
+                </div>
+                <span className={`ledger-amount ${tx.amount >= 0 ? "pos" : "neg"}`}>
+                  {tx.amount >= 0 ? `+${tx.amount}` : tx.amount}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>跟进记录</h3>
+          {student.followUps.length === 0 ? (
+            <div className="muted small">暂无跟进记录，点击右上角「记录跟进」</div>
+          ) : (
+            student.followUps.map((f) => (
+              <div key={f.id} className="ledger-row">
+                <div className="flex between">
+                  <span className="small">
+                    <b>{FOLLOWUP_TYPE_LABELS[f.type]}</b>
+                  </span>
+                  <span className="small muted">
+                    {new Date(f.createdAt).toLocaleDateString("zh-CN")}
+                  </span>
+                </div>
+                <div className="small">{f.content}</div>
+                {f.nextFollowUpAt && (
+                  <div className="small muted">
+                    下次跟进：{new Date(f.nextFollowUpAt).toLocaleDateString("zh-CN")}
+                  </div>
+                )}
+              </div>
+            ))
           )}
         </div>
       </div>
@@ -271,6 +353,52 @@ export function StudentDetail() {
               ))}
             </div>
           )}
+        </Modal>
+      )}
+
+      {showFollowUp && (
+        <Modal title={`记录跟进 — ${student.name}`} onClose={() => setShowFollowUp(false)}>
+          <div className="field">
+            <label>跟进方式</label>
+            <select
+              className="select"
+              value={followType}
+              onChange={(e) => setFollowType(e.target.value as FollowUpType)}
+            >
+              {(Object.keys(FOLLOWUP_TYPE_LABELS) as FollowUpType[]).map((t) => (
+                <option key={t} value={t}>
+                  {FOLLOWUP_TYPE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>结果摘要</label>
+            <textarea
+              className="input"
+              rows={3}
+              value={followContent}
+              onChange={(e) => setFollowContent(e.target.value)}
+              placeholder="例如：家长有意向，约下周再沟通续费"
+            />
+          </div>
+          <div className="field">
+            <label>下次跟进日期（可选）</label>
+            <input
+              className="input"
+              type="date"
+              value={followNextDate}
+              onChange={(e) => setFollowNextDate(e.target.value)}
+            />
+          </div>
+          <div className="flex" style={{ justifyContent: "flex-end" }}>
+            <button className="btn" onClick={() => setShowFollowUp(false)}>
+              取消
+            </button>
+            <button className="btn primary" onClick={recordFollowUp} disabled={!followContent.trim()}>
+              保存跟进
+            </button>
+          </div>
         </Modal>
       )}
     </div>

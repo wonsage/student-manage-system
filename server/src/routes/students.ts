@@ -102,6 +102,12 @@ studentsRouter.get("/:id", async (req, res, next) => {
           include: { lesson: { include: { class: { select: { name: true } } } } },
           take: 10,
         },
+        followUps: { orderBy: { createdAt: "desc" }, take: 20 },
+        creditTransactions: {
+          orderBy: { createdAt: "desc" },
+          include: { lesson: { include: { class: { select: { name: true } } } } },
+          take: 50,
+        },
       },
     });
     if (!student) throw new HttpError(404, "学生不存在");

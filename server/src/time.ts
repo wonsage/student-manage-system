@@ -1,16 +1,21 @@
 // 业务时间统一使用 Australia/Melbourne 时区（作业要求，单时区，无多时区切换）。
 export const MELBOURNE_TZ = "Australia/Melbourne";
 
-/** 今天的 Melbourne 本地日期，格式 "YYYY-MM-DD"。 */
-export function melbourneToday(): string {
+/** 任意时刻在 Melbourne 的本地日期，格式 "YYYY-MM-DD"。 */
+export function melbourneDateOf(d: Date): string {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: MELBOURNE_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(new Date());
+  }).formatToParts(d);
   const get = (t: string) => parts.find((p) => p.type === t)!.value;
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** 今天的 Melbourne 本地日期，格式 "YYYY-MM-DD"。 */
+export function melbourneToday(): string {
+  return melbourneDateOf(new Date());
 }
 
 /** 今天在 Melbourne 是星期几，1=周一 .. 7=周日（ISO-8601）。 */

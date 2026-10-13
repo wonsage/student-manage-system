@@ -34,6 +34,17 @@ enrollmentsRouter.post(
             note,
           },
         });
+        // 课时流水（PURCHASE +N），与报名同事务，保证账实一致。
+        await tx.creditTransaction.create({
+          data: {
+            studentId: student.id,
+            enrollmentId: created.id,
+            type: "PURCHASE",
+            amount: credits,
+            balanceAfter: credits,
+            note,
+          },
+        });
         // 购买课时即视为已报名（学生可能之前是 LEAD/试听状态）
         await tx.student.update({
           where: { id: student.id },

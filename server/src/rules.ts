@@ -112,10 +112,12 @@ export async function assertClassCapacity(classId: string) {
  *
  * 返回扣减后的 enrollment（null 表示余额不足）。
  * 注意：必须由调用方在同一事务里完成「写出勤记录」，保证扣课时与出勤原子。
+ * 同时在同一事务里写一条 DEDUCT 课时流水（切片③），保证账实一致。
  */
 export async function deductOneCreditTx(
   tx: Prisma.TransactionClient,
-  studentId: string
+  studentId: string,
+  opts: { lessonId?: string; note?: string } = {}
 ) {
   const enrollment = await tx.enrollment.findFirst({
     where: { studentId, status: "ACTIVE", creditsRemaining: { gt: 0 } },
@@ -136,5 +138,21 @@ export async function deductOneCreditTx(
     data: { status: "EXHAUSTED" },
   });
 
-  return tx.enrollment.findUnique({ where: { id: enrollment.id } });
+  const after = await tx.enrollment.findUnique({ where: { id: enrollment.id } });
+  if (!after) return null;
+
+  // 课时流水（DEDUCT -1），与扣减同事务；balanceAfter 记扣后余额。
+  await tx.creditTransaction.create({
+    data: {
+      studentId,
+      enrollmentId: after.id,
+      lessonId: opts.lessonId ?? null,
+      type: "DEDUCT",
+      amount: -1,
+      balanceAfter: after.creditsRemaining,
+      note: opts.note,
+    },
+  });
+
+  return after;
 }

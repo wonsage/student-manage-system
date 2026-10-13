@@ -281,6 +281,42 @@ async function main() {
     check("问题3：新建班当天即可查到课（可点名）", !!newLesson, newLesson ? newLesson.class.name : "未生成 lesson");
   }
 
+  // ===== 切片②：学生跟进 / 待办 =====
+  const followToday = await api("/api/followups/today", { token: AT });
+  check(
+    "跟进：今日待跟进清单",
+    followToday.status === 200,
+    `试听${followToday.data.pendingTrial.length} 低课时${followToday.data.lowCredits.length} 到期${followToday.data.dueFollowUps.length}`
+  );
+  check("跟进：自动识别待跟进试听", followToday.data.pendingTrial.length > 0);
+  check("跟进：自动识别快用完课时", followToday.data.lowCredits.length > 0);
+
+  const trialStudent = mine.data.students.find((s) => s.status === "TRIAL_DONE");
+  if (trialStudent) {
+    const fup = await api(`/api/students/${trialStudent.id}/followups`, {
+      method: "POST",
+      token: AT,
+      body: { type: "CALL", content: "e2e 测试跟进", nextFollowUpAt: "2000-01-01" },
+    });
+    check("跟进：记录跟进 → 201", fup.status === 201);
+    const after = await api("/api/followups/today", { token: AT });
+    const inDue = after.data.dueFollowUps.some((f) => f.studentId === trialStudent.id);
+    check("跟进：过期跟进回流到待办", inDue);
+  }
+
+  // ===== 切片③：课时流水 =====
+  const leadDetail = await api(`/api/students/${lead.id}`, { token: AT });
+  const purchaseTx = leadDetail.status === 200
+    ? leadDetail.data.student.creditTransactions.find((tx) => tx.type === "PURCHASE")
+    : null;
+  check("流水：报名产生 PURCHASE 流水（金额=购买数）", !!purchaseTx && purchaseTx.amount === 10, `amount=${purchaseTx?.amount}`);
+
+  const targetDetail = await api(`/api/students/${target.student.id}`, { token: AT });
+  const dedTx = targetDetail.status === 200
+    ? targetDetail.data.student.creditTransactions.find((tx) => tx.type === "DEDUCT")
+    : null;
+  check("流水：出勤产生 DEDUCT 流水（-1）", !!dedTx && dedTx.amount === -1, `amount=${dedTx?.amount}`);
+
   console.log("\n全部检查完成。");
 }
 

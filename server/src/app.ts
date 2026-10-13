@@ -5,6 +5,7 @@ import { studentsRouter } from "./routes/students";
 import { classesRouter } from "./routes/classes";
 import { enrollmentsRouter } from "./routes/enrollments";
 import { lessonsRouter } from "./routes/lessons";
+import { followupsRouter } from "./routes/followups";
 import { prisma } from "./db";
 import { HttpError, requireAuth } from "./middleware";
 
@@ -73,6 +74,7 @@ app.get("/api/teachers", requireAuth, async (_req, res, next) => {
 app.use("/api/auth", authRouter);
 app.use("/api/students", studentsRouter);
 app.use("/api", enrollmentsRouter);
+app.use("/api", followupsRouter);
 app.use("/api/classes", classesRouter);
 app.use("/api/lessons", lessonsRouter);
 

@@ -1,6 +1,8 @@
 import type {
   ClassInfo,
+  CreditTransaction,
   Enrollment,
+  FollowUp,
   LessonDetail,
   LessonSummary,
   Student,
@@ -94,6 +96,8 @@ export const api = {
         enrollments: Enrollment[];
         memberships: { class: ClassInfo & { teacher: { name: string } } }[];
         feedbacks: { id: string; summary: string; generatedBy: string; lesson: { class: { name: string } } }[];
+        followUps: FollowUp[];
+        creditTransactions: CreditTransaction[];
       };
     }>(`/students/${id}`),
 
@@ -151,4 +155,18 @@ export const api = {
     lessonId: string,
     body: { studentId: string; summary: string; strengths?: string; nextSteps?: string; generatedBy: "LLM" | "MANUAL" }
   ) => request(`/lessons/${lessonId}/feedback`, { method: "POST", body }),
+
+  followups: () =>
+    request<{
+      date: string;
+      pendingTrial: { id: string; name: string; status: string; level?: string | null }[];
+      lowCredits: { id: string; name: string; status: string; level?: string | null; remainingCredits: number }[];
+      dueFollowUps: { id: string; studentId: string; studentName: string; studentStatus: string; type: string; content: string; nextFollowUpAt: string | null }[];
+    }>("/followups/today"),
+
+  recordFollowUp: (studentId: string, body: { type: string; content: string; nextFollowUpAt?: string }) =>
+    request<{ followUp: FollowUp }>(`/students/${studentId}/followups`, {
+      method: "POST",
+      body,
+    }),
 };

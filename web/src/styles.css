@@ -431,3 +431,30 @@ textarea.input:focus {
 }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; font-weight: 500; }
+
+/* ---------- Follow-up / ledger ---------- */
+.follow-group { margin-bottom: 18px; }
+.follow-group:last-child { margin-bottom: 0; }
+.follow-title { margin-bottom: 4px; }
+.follow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.follow-row:last-child { border-bottom: none; }
+
+.ledger-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ledger-row:last-child { border-bottom: none; }
+.ledger-amount {
+  font-weight: 700;
+  min-width: 44px;
+}
+.ledger-amount.pos { color: var(--success); }
+.ledger-amount.neg { color: var(--danger); }
+

@@ -1,7 +1,7 @@
 import "dotenv/config";
-import { PrismaClient, Role, StudentStatus } from "@prisma/client";
+import { PrismaClient, Role, StudentStatus, FollowUpType } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { melbourneDayOfWeek, melbourneToday } from "../src/time";
+import { melbourneDayOfWeek, melbourneToday, melbourneDate } from "../src/time";
 
 const prisma = new PrismaClient();
 
@@ -19,9 +19,11 @@ function dateStr(offsetDays: number): string {
 }
 
 async function main() {
-  // 清空（按依赖顺序）
+  // 清空（按依赖顺序：先删引用新表的流水/跟进，再删主表）
   await prisma.lessonFeedback.deleteMany();
   await prisma.attendance.deleteMany();
+  await prisma.creditTransaction.deleteMany();
+  await prisma.followUp.deleteMany();
   await prisma.lesson.deleteMany();
   await prisma.classEnrollment.deleteMany();
   await prisma.enrollment.deleteMany();
@@ -110,7 +112,7 @@ async function main() {
     let credits = 20 - i * 2;
     if (i === 2) credits = 1; // 王小刚：快用完
     if (i === 3) credits = 0; // 周小杰：已用完（EXHAUSTED，用于演示扣课拦截）
-    await prisma.enrollment.create({
+    const enrollment = await prisma.enrollment.create({
       data: {
         studentId: s.id,
         creditsTotal: 20,
@@ -119,16 +121,37 @@ async function main() {
         note: "2026 学年秋季报名",
       },
     });
+    // 课时流水（PURCHASE）
+    await prisma.creditTransaction.create({
+      data: {
+        studentId: s.id,
+        enrollmentId: enrollment.id,
+        type: "PURCHASE",
+        amount: 20,
+        balanceAfter: credits,
+        note: "2026 学年秋季报名",
+      },
+    });
     creditsByStudent[s.id] = credits;
   }
   // 林小静 续费一条，展示"同一学生多次购买"
   const lin = enrolled[6];
   if (lin) {
-    await prisma.enrollment.create({
+    const renewal = await prisma.enrollment.create({
       data: {
         studentId: lin.id,
         creditsTotal: 12,
         creditsRemaining: 12,
+        note: "续费",
+      },
+    });
+    await prisma.creditTransaction.create({
+      data: {
+        studentId: lin.id,
+        enrollmentId: renewal.id,
+        type: "PURCHASE",
+        amount: 12,
+        balanceAfter: 12,
         note: "续费",
       },
     });
@@ -198,6 +221,31 @@ async function main() {
         data: { classId: cls.id, date },
       });
     }
+  }
+
+  // 跟进记录（切片②演示）：给「待跟进试听」和「快用完课时」的学生造几条跟进
+  const followUpPlan: {
+    studentName: string;
+    type: FollowUpType;
+    content: string;
+    next: string | null;
+  }[] = [
+    { studentName: "陈小美", type: FollowUpType.TRIAL, content: "试听反馈良好，家长考虑报名，已约今天回访", next: melbourneToday() },
+    { studentName: "王小刚", type: FollowUpType.CALL, content: "剩余 1 课时，电话提醒家长续费", next: melbourneToday() },
+    { studentName: "赵小宇", type: FollowUpType.WECHAT, content: "已发试听报告，明天跟进报名意向", next: melbourneDate(1) },
+  ];
+  for (const f of followUpPlan) {
+    const st = students.find((s) => s.name === f.studentName);
+    if (!st) continue;
+    await prisma.followUp.create({
+      data: {
+        studentId: st.id,
+        adminId: admins[0].id, // 王丽名下
+        type: f.type,
+        content: f.content,
+        nextFollowUpAt: f.next ? new Date(`${f.next}T00:00:00Z`) : null,
+      },
+    });
   }
 
   console.log("Seed 完成 ✅");

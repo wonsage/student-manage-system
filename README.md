@@ -1,6 +1,10 @@
 # 学生管理系统 · Austin Education 技术作业
 
-一个面向教育机构的**学生全生命周期管理**系统的最小可运行切片：**报名 → 排进班级 → 上课记出勤并扣课时**。
+一个面向教育机构的**学生全生命周期管理**系统，包含三个垂直切片：
+
+1. **报名 → 排进班级 → 上课记出勤并扣课时**（核心）
+2. **学生跟进 / 待办**（驱动顾问每日行动）
+3. **课时流水账**（课时每笔变动可追溯）
 
 - 设计文档：[`DESIGN.md`](./DESIGN.md)（业务理解、数据模型、业务规则、页面草图、切片理由）
 - 技术栈：前端 React + TypeScript + Vite；后端 Express + TypeScript + Prisma + PostgreSQL
@@ -61,10 +65,11 @@ cd ../web && npm install && npm run dev    # 前端 http://localhost:5173（被�
 | 课时余额不为负，扣到 0 自动 EXHAUSTED | 事务内条件 `UPDATE`（`creditsRemaining > 0`）+ 数据库 `CHECK` |
 | 只有 ENROLLED 学生能排班 | 服务端 |
 | 同一课同一学生只扣一次课时 | 数据库 `UNIQUE` + 扣课时与出勤同一事务 |
+| 课时每笔变动都有流水，可与账户对账 | 事务内写 `CreditTransaction`（PURCHASE/DEDUCT） |
 | admin 只能改自己名下学生（可读全部） | 中间件 `assertCanWriteStudent` |
 | 班级容量 / 老师时间不重叠 | 服务端 |
 
-**破坏测试**：给 0 课时学生（`周小杰`）记出勤、把学生排进时间冲突的班、用别的顾问账号改别人的学生，都会得到 4xx 拒绝。完整自动化脚本见 `server/scripts/e2e.mjs`（26 项断言）。
+**破坏测试**：给 0 课时学生（`周小杰`）记出勤、把学生排进时间冲突的班、用别的顾问账号改别人的学生，都会得到 4xx 拒绝。完整自动化脚本见 `server/scripts/e2e.mjs`（40 项断言，含跟进/流水回归）。
 
 ---
 

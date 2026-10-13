@@ -122,3 +122,44 @@ export const ATTENDANCE_LABELS: Record<string, string> = {
   LATE: "迟到",
   EXCUSED: "请假",
 };
+
+export type FollowUpType = "CALL" | "WECHAT" | "MEETING" | "TRIAL" | "OTHER";
+
+export const FOLLOWUP_TYPE_LABELS: Record<FollowUpType, string> = {
+  CALL: "电话",
+  WECHAT: "微信",
+  MEETING: "面谈",
+  TRIAL: "试听",
+  OTHER: "其他",
+};
+
+export interface FollowUp {
+  id: string;
+  studentId: string;
+  type: FollowUpType;
+  content: string;
+  nextFollowUpAt?: string | null;
+  completed: boolean;
+  createdAt: string;
+}
+
+export type CreditTxType = "PURCHASE" | "DEDUCT" | "REFUND";
+
+export const CREDIT_TX_LABELS: Record<CreditTxType, string> = {
+  PURCHASE: "购买",
+  DEDUCT: "扣课时",
+  REFUND: "退费",
+};
+
+export interface CreditTransaction {
+  id: string;
+  studentId: string;
+  enrollmentId?: string | null;
+  lessonId?: string | null;
+  type: CreditTxType;
+  amount: number;
+  balanceAfter: number;
+  note?: string | null;
+  createdAt: string;
+  lesson?: { class: { name: string } } | null;
+}

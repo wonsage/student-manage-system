@@ -47,7 +47,7 @@ async function recordAttendance(
     let deducted = false;
     // 此前未扣课时（如 ABSENT/LATE/EXCUSED），现在改记 PRESENT → 补扣一次
     if (status === "PRESENT" && existing.creditsDeducted === 0) {
-      const enrollment = await deductOneCreditTx(tx, studentId);
+      const enrollment = await deductOneCreditTx(tx, studentId, { lessonId });
       if (!enrollment) {
         throw new HttpError(409, "课时不足：该学生剩余课时为 0，无法记出勤");
       }
@@ -63,7 +63,7 @@ async function recordAttendance(
 
   let creditsDeducted = 0;
   if (status === "PRESENT") {
-    const enrollment = await deductOneCreditTx(tx, studentId);
+    const enrollment = await deductOneCreditTx(tx, studentId, { lessonId });
     if (!enrollment) {
       throw new HttpError(409, "课时不足：该学生剩余课时为 0，无法记出勤");
     }

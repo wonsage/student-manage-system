@@ -35,7 +35,11 @@
 
 ## 2. 第一版做什么、不做什么
 
-**做（垂直切片）：报名 → 排进班级 → 上课记出勤并扣课时。** 选它，因为它是"钱"和"课"发生关联的一段，出错代价最高、最能体现系统价值；且同时覆盖 admin 和 teacher 两个角色，自然展示权限模型。
+**做（三个垂直切片，按依赖顺序）：**
+
+1. **报名 → 排进班级 → 上课记出勤并扣课时** —— 核心，是"钱"和"课"发生关联的一段，出错代价最高、最能体现系统价值；同时覆盖 admin 和 teacher 两个角色，自然展示权限模型。
+2. **学生跟进 / 待办** —— 把顾问的每日行动清单化：自动识别"试听完待跟进 / 快用完课时"，手动记录跟进并设下次跟进日期，到期自动回流。
+3. **课时流水账** —— 课时账户的每一笔变动（购买 +N / 出勤扣课 -1）都有流水，余额可与账户对账。
 
 **明确不做（以及为什么可以后做）：**
 
@@ -74,6 +78,8 @@ User(ADMIN | TEACHER)
 | `Lesson`          | classId, date, status                                      | 班级某天的具体实例，`UNIQUE(classId, date)`                             |
 | `Attendance`      | lessonId, studentId, status, creditsDeducted               | 出勤即扣课时凭证，`UNIQUE(lessonId, studentId)`                         |
 | `LessonFeedback`  | lessonId, studentId, summary, generatedBy                  | 课堂反馈，`generatedBy ∈ {LLM, MANUAL}`                                 |
+| `FollowUp`        | studentId, adminId, type, content, nextFollowUpAt          | 跟进记录；到期（nextFollowUpAt ≤ 今天）回流到"今日待跟进"               |
+| `CreditTransaction` | studentId, enrollmentId, type, amount, balanceAfter      | 课时流水；购买 +N / 扣课 -1，`balanceAfter` 记变动后余额                |
 
 ### 3.3 三个必须讲清楚的关系
 
@@ -85,7 +91,7 @@ User(ADMIN | TEACHER)
 
 - **记录**：`Enrollment` 是购买记录，`creditsRemaining` 是这条购买的剩余余额；一学生可多次购买，总余额 = 各 ACTIVE 之和。
 - **扣减**：老师记 PRESENT 时，在**同一事务**里对最早到期的 ACTIVE Enrollment 扣 1，用 `UPDATE ... WHERE creditsRemaining > 0` 保证不为负，扣到 0 置 EXHAUSTED。
-- **可追溯**：`Attendance.creditsDeducted` 记"这堂课扣了几个课时"；退费 = Enrollment 置 REFUNDED（余额冻结）。
+- **可追溯**：每次购买、每次扣课都在同一事务里写一条 `CreditTransaction`（PURCHASE +N / DEDUCT -1，含 `balanceAfter` 与 `lessonId`），学生详情可看完整课时流水；退费 = Enrollment 置 REFUNDED（余额冻结）。
 
 ---
 
@@ -132,7 +138,7 @@ User(ADMIN | TEACHER)
 
 ```
 登录页
- ├─ Admin 工作台（第一眼）：待办卡(试听/课时/新报名) · 学生列表(我的/全部) · 详情→报名/排班/跟进
+ ├─ Admin 工作台（第一眼）：待办卡 · 今日待跟进清单(试听/低课时/到期) · 学生列表(我的/全部) · 详情→报名/排班/跟进/课时流水
  └─ Teacher 工作台（第一眼）：今日课程 · 课堂详情→点名扣课时/反馈
 ```
 
@@ -208,5 +214,11 @@ Teacher 课堂详情（点名 + 反馈，新学生标 ⭐）：
 2. **自然覆盖两个角色**，展示权限模型（admin 读全部、写自己）最顺。
 3. **LLM 有真实落点**：老师下课给每个学生写反馈是高频、费时、格式化的劳动，放"根据历史 + 本次出勤生成反馈草稿"上（structured output + zod 校验 + 失败降级手写），不是装饰性聊天框。
 4. **演示张力足够**：面试官可当场绕过界面调接口，验证"0 课时就拦、排冲突就拒"。
+
+切片②③是切片①的自然延伸，而非另起炉灶：
+
+- **跟进/待办**补上漏斗后半段"续费/流失"的行动闭环——学生状态机（LEAD → TRIAL_DONE → ENROLLED）已有，缺的是"顾问每天该做什么"。它让系统从"记数据"进化到"驱动行动"。
+- **课时流水账**兑现 §3.3 承诺的"精确、可追溯"——扣课原来只记 `Attendance.creditsDeducted`，缺统一流水视角；加一张 `CreditTransaction`，钱的每笔都有来龙去脉。
+- 两者都不触碰扣课时、并发、排课冲突这些高危逻辑（流水只"追加写"，跟进完全独立），改动风险最低。
 
 切片做窄、做透，好过五个页面每个都只能看不能操作。

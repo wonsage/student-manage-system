@@ -25,6 +25,7 @@ model User {
   students    Student[]     @relation("OwnedStudents")
   classes     Class[]       @relation("TaughtClasses")
   attendances Attendance[]  @relation("RecordedAttendances")
+  followUps   FollowUp[]    @relation("RecordedFollowUps")
 
   @@map("users")
 }
@@ -52,10 +53,12 @@ model Student {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  enrollments Enrollment[]
-  memberships ClassEnrollment[]
-  attendances Attendance[]
-  feedbacks   LessonFeedback[]
+  enrollments       Enrollment[]
+  memberships       ClassEnrollment[]
+  attendances       Attendance[]
+  feedbacks         LessonFeedback[]
+  followUps         FollowUp[]
+  creditTransactions CreditTransaction[]
 
   @@index([adminId])
   @@map("students")
@@ -77,6 +80,8 @@ model Enrollment {
   note             String?
   status           EnrollmentStatus @default(ACTIVE)
   purchasedAt      DateTime         @default(now())
+
+  creditTransactions CreditTransaction[]
 
   @@index([studentId])
   @@map("enrollments")
@@ -142,8 +147,9 @@ model Lesson {
   date    String // "YYYY-MM-DD" Melbourne local date
   status  LessonStatus @default(SCHEDULED)
 
-  attendances Attendance[]
-  feedbacks   LessonFeedback[]
+  attendances        Attendance[]
+  feedbacks          LessonFeedback[]
+  creditTransactions CreditTransaction[]
 
   @@unique([classId, date])
   @@index([date])
@@ -195,4 +201,59 @@ model LessonFeedback {
   @@unique([lessonId, studentId])
   @@index([studentId])
   @@map("lesson_feedbacks")
+}
+
+enum FollowUpType {
+  CALL // 电话
+  WECHAT // 微信
+  MEETING // 面谈
+  TRIAL // 试听
+  OTHER
+}
+
+// 「跟进记录」——顾问对学生的每次跟进动作（切片②：学生跟进/待办）。
+// 记录方式 + 结果摘要 + 可选的「下次跟进日期」，到期回到「今日待跟进」。
+model FollowUp {
+  id             String       @id @default(cuid())
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id])
+  adminId        String
+  admin          User         @relation("RecordedFollowUps", fields: [adminId], references: [id])
+  type           FollowUpType
+  content        String
+  nextFollowUpAt DateTime?
+  completed      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@index([studentId])
+  @@index([adminId])
+  @@index([nextFollowUpAt])
+  @@map("follow_ups")
+}
+
+enum CreditTxType {
+  PURCHASE // 报名/续费 +N
+  DEDUCT // 出勤扣课时 -1
+  REFUND // 退费（预留）
+}
+
+// 「课时流水」——课时账户的每一笔变动（切片③：课时流水账）。
+// amount：+N 购买 / -1 扣课；balanceAfter 记该笔之后所属 Enrollment 的剩余余额。
+model CreditTransaction {
+  id           String         @id @default(cuid())
+  studentId    String
+  student      Student        @relation(fields: [studentId], references: [id])
+  enrollmentId String?
+  enrollment   Enrollment?    @relation(fields: [enrollmentId], references: [id])
+  lessonId     String?
+  lesson       Lesson?        @relation(fields: [lessonId], references: [id])
+  type         CreditTxType
+  amount       Int
+  balanceAfter Int
+  note         String?
+  createdAt    DateTime       @default(now())
+
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@map("credit_transactions")
 }
