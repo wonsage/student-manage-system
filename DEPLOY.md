@@ -62,9 +62,9 @@ npm run db:seed
 3. 配置（**Build & Development Settings**）：
    - **Root Directory**：`server`
    - **Framework Preset**：`Other`
-   - **Build Command：留空**（什么都不填）。`postinstall: prisma generate` 是 npm 安装时的**自动钩子**，`npm install` 阶段已经自动执行过了，**切勿把它填进 Build Command**——否则会被当成 shell 命令执行，报 `Command "postinstall: prisma generate" exited with 127`。
+   - **Build Command：Override 并清空**。`Other` 预设默认会自动填 `npm run build`——本项目**不需要**（`api/index.ts` 这个 Serverless Function 由 Vercel 用 esbuild 自动打包，`tsc` 产出的 `dist/` 只在本地 `npm start` 用）。把默认值删掉、留空即可。**切勿填 `postinstall: prisma generate`**——那是 npm 安装时自动触发的钩子，填进去会报 `Command "postinstall: prisma generate" exited with 127`。
+   - **Output Directory：Override 并清空**。默认显示 `public`，本项目无静态产物，不清空会报 `No Output Directory named "public" found`。
    - **Install Command**：`npm install`（默认即可）
-   - **Output Directory**：留空（Serverless Function 不需要输出目录）
 4. **Environment Variables**：
 
 | Key | 值 |
