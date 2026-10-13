@@ -1,5 +1,7 @@
 # 学生管理系统 · Austin Education 技术作业
 
+> **线上体验（已部署）**：<https://student-manage-system-demo.vercel.app/>
+
 一个面向教育机构的**学生全生命周期管理**系统，包含三个垂直切片：
 
 1. **报名 → 排进班级 → 上课记出勤并扣课时**（核心）
@@ -18,7 +20,7 @@
 
 | 项 | 地址 |
 |---|---|
-| 前端 | <https://student-manage-system-iota.vercel.app/> |
+| 前端 | <https://student-manage-system-demo.vercel.app/> |
 | 后端 API | <https://student-manage-system-nine.vercel.app>（`/api/health` 返回 200） |
 
 **演示账号**（密码统一 `password123`）：课程顾问 `wangli@austin.edu`（王丽，名下学生最多）、老师 `wang.teacher@austin.edu`（今天有课）、其他顾问 `liqiang@austin.edu`（演示"只能改自己名下学生"）。

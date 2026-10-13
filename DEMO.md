@@ -9,7 +9,7 @@
 
 | 项 | 值 |
 |---|---|
-| 前端 | <https://student-manage-system-iota.vercel.app/> |
+| 前端 | <https://student-manage-system-demo.vercel.app/> |
 | 后端 API | <https://student-manage-system-nine.vercel.app>（`/api/health` 返回 200） |
 | 课程顾问 | `wangli@austin.edu`（名下学生最多，含各状态） |
 | 老师 | `wang.teacher@austin.edu`（今天有课） |
