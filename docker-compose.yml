@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sm-postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: student_manage
+    ports:
+      - "5433:5432" # 与 server/.env 的 DATABASE_URL 一致
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
