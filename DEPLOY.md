@@ -59,10 +59,12 @@ npm run db:seed
 
 1. 先把仓库 push 到 GitHub（`git remote add` 后 push）。
 2. Vercel → **Add New Project** → 导入该仓库。
-3. 配置：
+3. 配置（**Build & Development Settings**）：
    - **Root Directory**：`server`
-   - Framework Preset：`Other`（Vercel 自动识别 `api/` 为 Serverless Function）
-   - 构建命令留默认（`postinstall: prisma generate` 会自动跑）
+   - **Framework Preset**：`Other`
+   - **Build Command：留空**（什么都不填）。`postinstall: prisma generate` 是 npm 安装时的**自动钩子**，`npm install` 阶段已经自动执行过了，**切勿把它填进 Build Command**——否则会被当成 shell 命令执行，报 `Command "postinstall: prisma generate" exited with 127`。
+   - **Install Command**：`npm install`（默认即可）
+   - **Output Directory**：留空（Serverless Function 不需要输出目录）
 4. **Environment Variables**：
 
 | Key | 值 |
