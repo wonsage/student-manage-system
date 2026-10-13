@@ -15,7 +15,7 @@
 .
 ├── DESIGN.md            # 设计文档（Part A）
 ├── README.md            # 本文档
-├── server/              # 后端（Express + Prisma + SQLite）
+├── server/              # 后端（Express + Prisma + PostgreSQL）
 │   ├── prisma/
 │   │   ├── schema.prisma        # 数据模型（ER 的落点）
 │   │   ├── migrations/          # 含 CHECK 约束的迁移
@@ -112,11 +112,14 @@ npm run dev                   # 启动 http://localhost:5173（被占用会自�
 
 ---
 
-## 部署（可选）
+## 部署（已上线）
 
-本地跑通即可满足要求。若要上线，完整步骤见 **[`DEPLOY.md`](./DEPLOY.md)**（Vercel 部署 + SQLite 换 Postgres）。
+前后端分离，已部署为两个 Vercel 项目 + 一个 Neon Postgres：
 
-要点：前后端分离，部署为两个 Vercel 项目 + 一个 Neon Postgres；`server/src/app.ts` 同时供本地 `src/index.ts` 和 Vercel `api/index.ts` 复用，前端通过 `VITE_API_BASE_URL` 指向后端域名。
+- 前端：<https://student-manage-system-iota.vercel.app/>
+- 后端 API：<https://student-manage-system-nine.vercel.app>（`/api/health` 返回 200）
+
+完整部署步骤见 **[`DEPLOY.md`](./DEPLOY.md)**。要点：`server/src/app.ts` 同时供本地 `src/index.ts`（`listen`）和 Vercel `api/index.ts`（`export default app`）复用；前端通过 `VITE_API_BASE_URL`（**只填域名、不带 `/api`**）指向后端域名，后端已 `cors()` 放行跨域。
 
 ---
 
