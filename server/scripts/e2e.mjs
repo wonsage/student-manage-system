@@ -209,6 +209,78 @@ async function main() {
   });
   check("保存课堂反馈", fb.status === 201);
 
+  // ===== 回归：问题 1 — 先缺勤再改出勤必须补扣课时 =====
+  const victim1 = roster.find(
+    (r) => r.student.id !== target.student.id && r.student.remainingCredits > 0
+  );
+  if (victim1) {
+    const before1 = victim1.student.remainingCredits;
+    const abs = await api(`/api/lessons/${todayLesson.id}/attendances`, {
+      method: "POST",
+      token: TT,
+      body: { studentId: victim1.student.id, status: "ABSENT" },
+    });
+    check("问题1：先记缺勤 → 不扣课时", abs.status === 201 && abs.data.deducted === false, `deducted=${abs.data.deducted}`);
+    const pres = await api(`/api/lessons/${todayLesson.id}/attendances`, {
+      method: "POST",
+      token: TT,
+      body: { studentId: victim1.student.id, status: "PRESENT" },
+    });
+    check("问题1：缺勤→出勤 补扣 1 课时", pres.status === 200 && pres.data.deducted === true, `deducted=${pres.data.deducted}`);
+    const d1 = await api(`/api/lessons/${todayLesson.id}`, { token: TT });
+    const r1 = d1.data.lesson.roster.find((r) => r.student.id === victim1.student.id);
+    check("问题1：补扣后剩余课时 = 原 -1", r1.student.remainingCredits === before1 - 1, `${before1} → ${r1.student.remainingCredits}`);
+  }
+
+  // ===== 回归：问题 2 — 并发双击只扣一次 =====
+  const victim2 = roster.find(
+    (r) =>
+      r.student.id !== target.student.id &&
+      r.student.id !== victim1?.student.id &&
+      r.student.remainingCredits > 0
+  );
+  if (victim2) {
+    const before2 = victim2.student.remainingCredits;
+    const [rA, rB] = await Promise.all([
+      api(`/api/lessons/${todayLesson.id}/attendances`, {
+        method: "POST",
+        token: TT,
+        body: { studentId: victim2.student.id, status: "PRESENT" },
+      }),
+      api(`/api/lessons/${todayLesson.id}/attendances`, {
+        method: "POST",
+        token: TT,
+        body: { studentId: victim2.student.id, status: "PRESENT" },
+      }),
+    ]);
+    const deductedTimes = [rA, rB].filter((r) => r.data?.deducted === true).length;
+    check("问题2：并发双击只扣一次课时", deductedTimes === 1, `deducted 次数=${deductedTimes}`);
+    const d2 = await api(`/api/lessons/${todayLesson.id}`, { token: TT });
+    const r2 = d2.data.lesson.roster.find((r) => r.student.id === victim2.student.id);
+    check("问题2：并发后剩余课时 = 原 -1", r2.student.remainingCredits === before2 - 1, `${before2} → ${r2.student.remainingCredits}`);
+  }
+
+  // ===== 回归：问题 3 — 新建班当天即可点名 =====
+  const newClass = await api("/api/classes", {
+    method: "POST",
+    token: AT,
+    body: {
+      name: "新建测试班",
+      subject: "测试",
+      teacherId: science.teacher.id,
+      dayOfWeek: mathA.dayOfWeek,
+      startTime: "09:00",
+      endTime: "10:30",
+      capacity: 10,
+    },
+  });
+  check("问题3：新建班成功", newClass.status === 201, newClass.data.class?.name || newClass.data.error);
+  if (newClass.status === 201) {
+    const adminLessons = await api("/api/lessons", { token: AT });
+    const newLesson = adminLessons.data.lessons.find((l) => l.class.id === newClass.data.class.id);
+    check("问题3：新建班当天即可查到课（可点名）", !!newLesson, newLesson ? newLesson.class.name : "未生成 lesson");
+  }
+
   console.log("\n全部检查完成。");
 }
 

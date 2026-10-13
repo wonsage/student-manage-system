@@ -58,9 +58,9 @@ cd ../web && npm install && npm run dev    # 前端 http://localhost:5173（被�
 | 规则 | 执行位置 |
 |---|---|
 | 学生不能排进时间重叠的班 | 服务端 `rules.ts` |
-| 课时余额不为负，扣到 0 自动 EXHAUSTED | 事务内条件 `UPDATE` + 数据库 `CHECK` |
+| 课时余额不为负，扣到 0 自动 EXHAUSTED | 事务内条件 `UPDATE`（`creditsRemaining > 0`）+ 数据库 `CHECK` |
 | 只有 ENROLLED 学生能排班 | 服务端 |
-| 同一课同一学生只扣一次课时 | 数据库 `UNIQUE` + 幂等 |
+| 同一课同一学生只扣一次课时 | 数据库 `UNIQUE` + 扣课时与出勤同一事务 |
 | admin 只能改自己名下学生（可读全部） | 中间件 `assertCanWriteStudent` |
 | 班级容量 / 老师时间不重叠 | 服务端 |
 
