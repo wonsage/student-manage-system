@@ -89,7 +89,7 @@ npm run db:seed
 
 | Key | 值 |
 |---|---|
-| `VITE_API_BASE_URL` | `https://xxx-api.vercel.app`（**末尾不要带 `/`**） |
+| `VITE_API_BASE_URL` | `https://xxx-api.vercel.app`（**只填域名，不要带 `/api` 前缀、也不要末尾 `/`**——`/api` 已由前端代码 `api.ts` 统一拼接，多填会变成 `api/api` 而 404） |
 
 4. Deploy，打开前端域名即可登录演示（后端已 `cors()` 放行跨域）。
 
