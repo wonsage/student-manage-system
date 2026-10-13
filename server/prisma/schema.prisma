@@ -1,0 +1,198 @@
+// Prisma schema — see DESIGN.md section 3 for the full data model rationale.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role
+  createdAt    DateTime @default(now())
+
+  students    Student[]     @relation("OwnedStudents")
+  classes     Class[]       @relation("TaughtClasses")
+  attendances Attendance[]  @relation("RecordedAttendances")
+
+  @@map("users")
+}
+
+enum StudentStatus {
+  LEAD // 咨询意向
+  TRIAL_SCHEDULED // 已约试听
+  TRIAL_DONE // 试听完待跟进
+  ENROLLED // 已报名
+  CHURNED // 流失
+}
+
+model Student {
+  id            String        @id @default(cuid())
+  adminId       String
+  admin         User          @relation("OwnedStudents", fields: [adminId], references: [id])
+  name          String
+  nickname      String?
+  guardianName  String?
+  guardianPhone String?
+  phone         String?
+  level         String?
+  status        StudentStatus @default(LEAD)
+  note          String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  enrollments Enrollment[]
+  memberships ClassEnrollment[]
+  attendances Attendance[]
+  feedbacks   LessonFeedback[]
+
+  @@index([adminId])
+  @@map("students")
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  EXHAUSTED
+  REFUNDED
+}
+
+// 「课时账户」— one record per purchase. creditsRemaining is the source of truth.
+model Enrollment {
+  id               String           @id @default(cuid())
+  studentId        String
+  student          Student          @relation(fields: [studentId], references: [id])
+  creditsTotal     Int
+  creditsRemaining Int
+  note             String?
+  status           EnrollmentStatus @default(ACTIVE)
+  purchasedAt      DateTime         @default(now())
+
+  @@index([studentId])
+  @@map("enrollments")
+}
+
+enum ClassStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+// 「班级」是每周固定模板（dayOfWeek + startTime + endTime）。
+model Class {
+  id        String      @id @default(cuid())
+  name      String
+  subject   String?
+  level     String?
+  teacherId String
+  teacher   User        @relation("TaughtClasses", fields: [teacherId], references: [id])
+  dayOfWeek Int // 1=Mon .. 7=Sun (ISO-8601)
+  startTime String // "HH:MM" Melbourne local
+  endTime   String // "HH:MM" Melbourne local
+  capacity  Int         @default(10)
+  status    ClassStatus @default(ACTIVE)
+  createdAt DateTime    @default(now())
+
+  lessons Lesson[]
+  members ClassEnrollment[]
+
+  @@index([teacherId])
+  @@map("classes")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  WITHDRAWN
+}
+
+model ClassEnrollment {
+  id         String           @id @default(cuid())
+  classId    String
+  class      Class            @relation(fields: [classId], references: [id])
+  studentId  String
+  student    Student          @relation(fields: [studentId], references: [id])
+  status     MembershipStatus @default(ACTIVE)
+  enrolledAt DateTime         @default(now())
+
+  @@unique([classId, studentId])
+  @@index([studentId])
+  @@map("class_enrollments")
+}
+
+enum LessonStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+// 「课」是班级在某一天的具体实例。
+model Lesson {
+  id      String       @id @default(cuid())
+  classId String
+  class   Class        @relation(fields: [classId], references: [id])
+  date    String // "YYYY-MM-DD" Melbourne local date
+  status  LessonStatus @default(SCHEDULED)
+
+  attendances Attendance[]
+  feedbacks   LessonFeedback[]
+
+  @@unique([classId, date])
+  @@index([date])
+  @@map("lessons")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+// 出勤即扣课时凭证。creditsDeducted 记录本堂课扣了几个课时。
+model Attendance {
+  id              String           @id @default(cuid())
+  lessonId        String
+  lesson          Lesson           @relation(fields: [lessonId], references: [id])
+  studentId       String
+  student         Student          @relation(fields: [studentId], references: [id])
+  status          AttendanceStatus
+  creditsDeducted Int              @default(0)
+  recordedById    String
+  recordedBy      User             @relation("RecordedAttendances", fields: [recordedById], references: [id])
+  recordedAt      DateTime         @default(now())
+
+  @@unique([lessonId, studentId])
+  @@index([studentId])
+  @@map("attendances")
+}
+
+enum FeedbackSource {
+  LLM
+  MANUAL
+}
+
+model LessonFeedback {
+  id          String         @id @default(cuid())
+  lessonId    String
+  lesson      Lesson         @relation(fields: [lessonId], references: [id])
+  studentId   String
+  student     Student        @relation(fields: [studentId], references: [id])
+  summary     String
+  strengths   String?
+  nextSteps   String?
+  generatedBy FeedbackSource @default(MANUAL)
+  createdAt   DateTime       @default(now())
+
+  @@unique([lessonId, studentId])
+  @@index([studentId])
+  @@map("lesson_feedbacks")
+}
