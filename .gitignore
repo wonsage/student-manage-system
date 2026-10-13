@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Workspace-local assistant data (memory, logs)
+.workbuddy/
+
+# Original assignment prompt (internal, do not publish)
+技术作业.html
+
+# Build output
+server/dist/
+web/dist/
+
+# Env / secrets — NEVER commit keys
+.env
+.env.local
+*.env
+
+# Database
+server/prisma/*.db
+server/prisma/*.db-journal
+server/prisma/*.db-wal
+server/prisma/*.db-shm
+
+# Logs & misc
+*.log
+.DS_Store
