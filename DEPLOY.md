@@ -67,7 +67,7 @@ npm run db:seed
 
 | Key | 值 |
 |---|---|
-| `DATABASE_URL` | **Neon 池化串**（`-pooler`，末尾追加 `&pgbouncer=true`） |
+| `DATABASE_URL` | **Neon 池化串**（域名含 `-pooler`），保留 `?sslmode=require`，**去掉 `&channel_binding=require`**（见下方兼容性说明） |
 | `JWT_SECRET` | 随机串（`openssl rand -hex 32`） |
 | `LLM_API_KEY` | 可选（不填则反馈降级手写） |
 | `LLM_BASE_URL` / `LLM_MODEL` | 可选 |
@@ -103,16 +103,25 @@ npm run db:seed
 
 | 服务 | 变量 | 必填 |
 |---|---|---|
-| Vercel 后端 | `DATABASE_URL`（Neon 池化串 + `&pgbouncer=true`） | ✅ |
+| Vercel 后端 | `DATABASE_URL`（Neon 池化串，仅 `?sslmode=require`） | ✅ |
 | Vercel 后端 | `JWT_SECRET` | ✅ |
 | Vercel 后端 | `LLM_API_KEY` | 否 |
 | Vercel 前端 | `VITE_API_BASE_URL` | ✅ |
 
 ---
 
+## 连接串兼容性（重要）
+
+Neon 控制台默认给出的连接串末尾带 `&channel_binding=require`，但 **Prisma 6 不支持该参数，会报 `P1001 Can't reach database server`**（已实测）。部署时务必：
+
+- **直连串**（本地 migrate/seed）：保留 `?sslmode=require`，删掉 `&channel_binding=require`。
+- **池化串**（Vercel 运行时）：同样保留 `?sslmode=require`，删掉 `&channel_binding=require`；**不要**加 `&pgbouncer=true`（Prisma 6 已废弃，实测同样报错）。
+
+两者都已在本机直连 Neon 实测连通。
+
 ## 常见问题
 
 - **本地开发**：用根目录 `docker compose up -d db` 起 Postgres（端口 5433，与 `server/.env` 一致）。
-- **`pgbouncer` 报错**：运行时用**池化串** + `&pgbouncer=true`；`migrate`/`seed` 用**直连串**。
+- **报 `P1001` 连不上**：连接串里是否残留 `&channel_binding=require` 或 `&pgbouncer=true`？去掉后只留 `?sslmode=require`。
 - **冷启动慢**：Vercel 免费档首次访问有几秒延迟，属正常；演示前先点一遍预热。
 - **想彻底重置本地库**：`docker compose down -v && docker compose up -d db && npx prisma migrate deploy && npm run db:seed`。
