@@ -54,6 +54,22 @@ async function main() {
   const all = await api("/api/students?scope=all", { token: AT });
   check("全部学生列表（跨顾问可读）", all.status === 200, `${all.data.students.length} 人`);
 
+  // 状态筛选 + 快捷筛选（工作台入口回填修复的回归）
+  const trialDone = await api("/api/students?scope=mine&status=TRIAL_DONE", { token: AT });
+  check(
+    "筛选：试听待跟进 → 只含 TRIAL_DONE",
+    trialDone.status === 200 && trialDone.data.students.every((s) => s.status === "TRIAL_DONE"),
+    `${trialDone.data.students.length} 人`
+  );
+
+  const lowCredits = await api("/api/students?scope=mine&status=LOW_CREDITS", { token: AT });
+  check(
+    "筛选：快用完课时 → 只含余额 1~2",
+    lowCredits.status === 200 &&
+      lowCredits.data.students.every((s) => s.remainingCredits > 0 && s.remainingCredits <= 2),
+    `${lowCredits.data.students.length} 人`
+  );
+
   // 找一个自己名下 ENROLLED 学生 + 一个别人名下的学生
   const myEnrolled = mine.data.students.find((s) => s.status === "ENROLLED");
   const others = all.data.students.find((s) => s.admin.id !== adminLogin.data.user.id);
