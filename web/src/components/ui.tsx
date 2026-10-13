@@ -5,6 +5,31 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { avatarColor, initialOf } from "../theme";
+
+/* ---------- Avatar ---------- */
+export function Avatar({
+  name,
+  size = "",
+}: {
+  name?: string | null;
+  size?: "" | "lg" | "sm";
+}) {
+  return (
+    <span className={`avatar ${size}`} style={{ background: avatarColor(name ?? "学") }}>
+      {initialOf(name)}
+    </span>
+  );
+}
+
+/* ---------- Progress ---------- */
+export function Progress({ value, color }: { value: number; color?: string }) {
+  return (
+    <div className="progress">
+      <span style={{ width: `${Math.min(100, Math.max(0, value))}%`, background: color }} />
+    </div>
+  );
+}
 
 /* ---------- Spinner / Empty ---------- */
 export function Spinner() {

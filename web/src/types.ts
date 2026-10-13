@@ -163,3 +163,47 @@ export interface CreditTransaction {
   createdAt: string;
   lesson?: { class: { name: string } } | null;
 }
+
+export interface AttendanceRecord {
+  id: string;
+  status: string;
+  creditsDeducted: number;
+  recordedAt: string;
+  lesson: { date: string; class: { name: string } };
+}
+
+export interface DashboardStats {
+  myStudents: number;
+  enrolled: number;
+  pendingTrial: number;
+  lowCredits: number;
+  newThisWeek: number;
+  totalCredits: number;
+  attendanceRate: number;
+}
+
+export interface TrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface StatusSlice {
+  status: string;
+  count: number;
+}
+
+export interface DashboardData {
+  today: string;
+  stats: DashboardStats;
+  enrollmentTrend: TrendPoint[];
+  creditConsumption: TrendPoint[];
+  statusDistribution: StatusSlice[];
+}
+
+export interface TeacherOverview {
+  today: string;
+  todayCount: number;
+  weekCount: number;
+  myStudents: number;
+  pendingAttendance: number;
+}

@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Spinner, Empty, Modal, useToast } from "../components/ui";
+import { Calendar } from "../components/Calendar";
 import type { ClassInfo } from "../types";
+import { subjectColor, WEEKDAY_NAMES } from "../theme";
 
-const WEEKDAY = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+type Mode = "calendar" | "list";
 
 export function Classes() {
   const [classes, setClasses] = useState<ClassInfo[] | null>(null);
   const [teachers, setTeachers] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [mode, setMode] = useState<Mode>("calendar");
   const toast = useToast();
 
   const [form, setForm] = useState({
@@ -56,51 +59,70 @@ export function Classes() {
       <div className="page-head">
         <div>
           <h1>班级与排课</h1>
-          <div className="sub">班级是每周固定的模板，具体某一天的"课"由系统自动生成。</div>
+          <div className="sub">班级是每周固定的模板，具体某一天的「课」由系统自动生成。</div>
         </div>
-        <button className="btn primary" onClick={() => setShowNew(true)}>
-          ＋ 新建班级
-        </button>
+        <div className="flex">
+          <div className="seg">
+            <button className={mode === "calendar" ? "active" : ""} onClick={() => setMode("calendar")}>
+              📅 日历视图
+            </button>
+            <button className={mode === "list" ? "active" : ""} onClick={() => setMode("list")}>
+              📋 列表视图
+            </button>
+          </div>
+          <button className="btn primary" onClick={() => setShowNew(true)}>
+            ＋ 新建班级
+          </button>
+        </div>
       </div>
 
-      <div className="card">
-        {!classes ? (
-          <Spinner />
-        ) : classes.length === 0 ? (
-          <Empty text="还没有班级，点击右上角新建" />
-        ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>班级</th>
-                <th>科目</th>
-                <th>上课时间</th>
-                <th>老师</th>
-                <th>人数</th>
-              </tr>
-            </thead>
-            <tbody>
-              {classes.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <b>{c.name}</b>
-                  </td>
-                  <td>{c.subject || "—"}</td>
-                  <td>
-                    {WEEKDAY[c.dayOfWeek]} {c.startTime}-{c.endTime}
-                  </td>
-                  <td>{c.teacher.name}</td>
-                  <td>
-                    <span style={{ color: c.memberCount >= c.capacity ? "var(--danger)" : "var(--ink)" }}>
-                      {c.memberCount}/{c.capacity}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {mode === "calendar" ? (
+        <Calendar />
+      ) : (
+        <div className="card">
+          {!classes ? (
+            <Spinner />
+          ) : classes.length === 0 ? (
+            <Empty text="还没有班级，点击右上角新建" />
+          ) : (
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>班级</th>
+                    <th>科目</th>
+                    <th>上课时间</th>
+                    <th>老师</th>
+                    <th>人数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classes.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <div className="cell-name">
+                          <span className="ev-color" style={{ width: 5, alignSelf: "stretch", borderRadius: 3, background: subjectColor(c.subject) }} />
+                          <span className="nm">{c.name}</span>
+                        </div>
+                      </td>
+                      <td>{c.subject || "—"}</td>
+                      <td>
+                        {WEEKDAY_NAMES[c.dayOfWeek]} {c.startTime}-{c.endTime}
+                      </td>
+                      <td>{c.teacher.name}</td>
+                      <td>
+                        <span style={{ color: c.memberCount >= c.capacity ? "var(--danger)" : "var(--ink)" }}>
+                          {c.memberCount}/{c.capacity}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {showNew && (
         <Modal title="新建班级" onClose={() => setShowNew(false)}>
@@ -145,7 +167,7 @@ export function Classes() {
                 value={form.dayOfWeek}
                 onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
               >
-                {WEEKDAY.slice(1).map((w, i) => (
+                {WEEKDAY_NAMES.slice(1).map((w, i) => (
                   <option key={i} value={i + 1}>
                     {w}
                   </option>

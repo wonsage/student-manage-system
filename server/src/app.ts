@@ -6,8 +6,11 @@ import { classesRouter } from "./routes/classes";
 import { enrollmentsRouter } from "./routes/enrollments";
 import { lessonsRouter } from "./routes/lessons";
 import { followupsRouter } from "./routes/followups";
+import { dashboardRouter } from "./routes/dashboard";
+import { teacherRouter } from "./routes/teacher";
 import { prisma } from "./db";
 import { HttpError, requireAuth } from "./middleware";
+import { melbourneToday, melbourneDayOfWeek } from "./time";
 
 // Express app 单独导出，供本地 index.ts（listen）和 Vercel api/index.ts（serverless）共用。
 export const app = express();
@@ -19,43 +22,16 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-// Admin 工作台概览（登录后第一眼要看到的数据）。
-app.get("/api/dashboard", requireAuth, async (req, res, next) => {
-  try {
-    const me = req.user!;
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
-    const [myStudents, pendingTrial, lowCredits, newThisWeek] =
-      await Promise.all([
-        prisma.student.count({ where: { adminId: me.id } }),
-        prisma.student.count({
-          where: { adminId: me.id, status: "TRIAL_DONE" },
-        }),
-        // 快用完课时：有 ACTIVE 报名且总余额 <= 2 且 > 0
-        prisma.student.count({
-          where: {
-            adminId: me.id,
-            status: "ENROLLED",
-            enrollments: {
-              some: {
-                status: "ACTIVE",
-                creditsRemaining: { gt: 0, lte: 2 },
-              },
-            },
-          },
-        }),
-        prisma.student.count({
-          where: { adminId: me.id, createdAt: { gte: weekAgo } },
-        }),
-      ]);
-
-    res.json({
-      stats: { myStudents, pendingTrial, lowCredits, newThisWeek },
-    });
-  } catch (e) {
-    next(e);
-  }
+// 业务「今天」元信息（前端日历/工作台统一锚点）。
+app.get("/api/meta", (_req, res) => {
+  res.json({ today: melbourneToday(), dayOfWeek: melbourneDayOfWeek() });
 });
+
+// Admin 工作台概览（登录后第一眼要看到的数据）。
+app.use("/api/dashboard", dashboardRouter);
+
+// Teacher 工作台聚合。
+app.use("/api/teacher", teacherRouter);
 
 // 老师列表（admin 建班时选择）
 app.get("/api/teachers", requireAuth, async (_req, res, next) => {

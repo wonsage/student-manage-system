@@ -1,11 +1,14 @@
 import type {
+  AttendanceRecord,
   ClassInfo,
   CreditTransaction,
+  DashboardData,
   Enrollment,
   FollowUp,
   LessonDetail,
   LessonSummary,
   Student,
+  TeacherOverview,
   User,
 } from "./types";
 
@@ -79,7 +82,9 @@ export const api = {
       body: { email, password },
     }),
 
-  dashboard: () => request<{ stats: { myStudents: number; pendingTrial: number; lowCredits: number; newThisWeek: number } }>("/dashboard"),
+  dashboard: () => request<DashboardData>("/dashboard"),
+
+  meta: () => request<{ today: string; dayOfWeek: number }>("/meta"),
 
   students: (params: { scope?: string; status?: string; q?: string } = {}) => {
     const qs = new URLSearchParams();
@@ -98,6 +103,7 @@ export const api = {
         feedbacks: { id: string; summary: string; generatedBy: string; lesson: { class: { name: string } } }[];
         followUps: FollowUp[];
         creditTransactions: CreditTransaction[];
+        attendances: AttendanceRecord[];
       };
     }>(`/students/${id}`),
 
@@ -127,6 +133,13 @@ export const api = {
     request<{ date: string; lessons: LessonSummary[] }>(
       `/lessons${date ? `?date=${date}` : ""}`
     ),
+
+  lessonsRange: (from: string, to: string) =>
+    request<{ from: string; to: string; lessons: LessonSummary[] }>(
+      `/lessons?from=${from}&to=${to}`
+    ),
+
+  teacherOverview: () => request<TeacherOverview>("/teacher/overview"),
 
   lesson: (id: string) => request<{ lesson: LessonDetail }>(`/lessons/${id}`),
 

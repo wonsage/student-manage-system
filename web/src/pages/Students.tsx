@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
-import { Spinner, Empty, Modal, useToast } from "../components/ui";
+import { Spinner, Empty, Modal, useToast, Avatar } from "../components/ui";
 import type { Student, StudentStatus } from "../types";
 import { STATUS_LABELS } from "../types";
 
@@ -66,6 +66,7 @@ export function Students() {
           <h1>学生管理</h1>
           <div className="sub">
             {scope === "all" ? "全部学生（只读协作视图）" : "我的学生"}
+            {students && ` · 共 ${students.length} 人`}
           </div>
         </div>
         <button className="btn primary" onClick={() => setShowNew(true)}>
@@ -74,24 +75,18 @@ export function Students() {
       </div>
 
       <div className="card">
-        <div className="flex mb-16" style={{ flexWrap: "wrap" }}>
-          <div className="flex">
-            <button
-              className={`btn small ${scope === "mine" ? "primary" : ""}`}
-              onClick={() => setParam("scope", "mine")}
-            >
+        <div className="flex mb-16 wrap">
+          <div className="seg">
+            <button className={scope === "mine" ? "active" : ""} onClick={() => setParam("scope", "mine")}>
               只看我的
             </button>
-            <button
-              className={`btn small ${scope === "all" ? "primary" : ""}`}
-              onClick={() => setParam("scope", "all")}
-            >
+            <button className={scope === "all" ? "active" : ""} onClick={() => setParam("scope", "all")}>
               全部学生
             </button>
           </div>
           <select
             className="select"
-            style={{ width: 160 }}
+            style={{ width: 170 }}
             value={status}
             onChange={(e) => setParam("status", e.target.value)}
           >
@@ -103,7 +98,7 @@ export function Students() {
           </select>
           <input
             className="input"
-            style={{ width: 200 }}
+            style={{ width: 220 }}
             placeholder="搜索姓名…"
             value={q}
             onChange={(e) => setParam("q", e.target.value)}
@@ -115,49 +110,55 @@ export function Students() {
         ) : students.length === 0 ? (
           <Empty text="没有符合条件的学生" />
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>姓名</th>
-                <th>状态</th>
-                <th>剩余课时</th>
-                <th>负责人</th>
-                <th>最近更新</th>
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((s) => (
-                <tr key={s.id} className="row-click">
-                  <td>
-                    <Link to={`/students/${s.id}`}>{s.name}</Link>
-                  </td>
-                  <td>
-                    <span className={`badge ${s.status}`}>
-                      {STATUS_LABELS[s.status]}
-                    </span>
-                  </td>
-                  <td>
-                    {s.status === "ENROLLED" ? (
-                      <span
-                        style={{
-                          color: s.remainingCredits <= 2 ? "var(--warn)" : "var(--ink)",
-                          fontWeight: s.remainingCredits <= 2 ? 700 : 400,
-                        }}
-                      >
-                        {s.remainingCredits}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="muted">{s.admin.name}</td>
-                  <td className="muted small">
-                    {new Date(s.updatedAt).toLocaleDateString("zh-CN")}
-                  </td>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>学生</th>
+                  <th>状态</th>
+                  <th>年级</th>
+                  <th>剩余课时</th>
+                  <th>负责人</th>
+                  <th>最近更新</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {students.map((s) => (
+                  <tr key={s.id} className="row-click">
+                    <td>
+                      <Link to={`/students/${s.id}`} className="cell-name" style={{ color: "inherit" }}>
+                        <Avatar name={s.name} size="sm" />
+                        <span>
+                          <span className="nm">{s.name}</span>
+                          {s.nickname && <span className="sub"> · {s.nickname}</span>}
+                        </span>
+                      </Link>
+                    </td>
+                    <td>
+                      <span className={`badge ${s.status}`}>{STATUS_LABELS[s.status]}</span>
+                    </td>
+                    <td className="muted">{s.level ?? "—"}</td>
+                    <td>
+                      {s.status === "ENROLLED" ? (
+                        <span
+                          style={{
+                            color: s.remainingCredits <= 2 ? "var(--warn)" : "var(--ink)",
+                            fontWeight: s.remainingCredits <= 2 ? 700 : 500,
+                          }}
+                        >
+                          {s.remainingCredits}
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td className="muted">{s.admin.name}</td>
+                    <td className="muted small">{new Date(s.updatedAt).toLocaleDateString("zh-CN")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

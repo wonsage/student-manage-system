@@ -76,14 +76,40 @@ async function recordAttendance(
   return { attendance, deducted: creditsDeducted > 0, created: true };
 }
 
-// 列表：teacher 只看自己的课（默认今天）；admin 可选 date 查全部。
+/** 把 lesson 行规整成 LessonSummary 形状。 */
+function toSummary(l: any) {
+  return {
+    id: l.id,
+    date: l.date,
+    status: l.status,
+    class: {
+      id: l.class.id,
+      name: l.class.name,
+      subject: l.class.subject,
+      level: l.class.level,
+      dayOfWeek: l.class.dayOfWeek,
+      startTime: l.class.startTime,
+      endTime: l.class.endTime,
+      teacher: l.class.teacher,
+      memberCount: l.class._count.members,
+    },
+    attendanceCount: l._count.attendances,
+  };
+}
+
+// 列表：teacher 只看自己的课；admin 全看。
+//   ?date=YYYY-MM-DD        单日（默认今天）
+//   ?from=..&to=..          日期范围（日历日/周/月视图用）
 lessonsRouter.get("/", async (req, res, next) => {
   try {
     const me = req.user!;
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+    const range = from && to;
     const date = (req.query.date as string) ?? melbourneToday();
 
     // 懒物化：确保「今天」该上的 ACTIVE 班都有 lesson（新建班/数据跨天过期也能点名）。
-    if (date === melbourneToday()) {
+    if ((range ? from! <= melbourneToday() && melbourneToday() <= to! : date === melbourneToday())) {
       const todayDow = melbourneDayOfWeek();
       const activeClasses = await prisma.class.findMany({
         where: {
@@ -93,10 +119,10 @@ lessonsRouter.get("/", async (req, res, next) => {
         },
         select: { id: true },
       });
-      await Promise.all(activeClasses.map((c) => ensureLesson(c.id, date)));
+      await Promise.all(activeClasses.map((c) => ensureLesson(c.id, melbourneToday())));
     }
 
-    const where: any = { date };
+    const where: any = range ? { date: { gte: from, lte: to } } : { date };
     if (me.role === "TEACHER") {
       where.class = { teacherId: me.id };
     }
@@ -112,29 +138,10 @@ lessonsRouter.get("/", async (req, res, next) => {
         },
         _count: { select: { attendances: true } },
       },
-      orderBy: { class: { startTime: "asc" } },
+      orderBy: [{ date: "asc" }, { class: { startTime: "asc" } }],
     });
 
-    res.json({
-      date,
-      lessons: lessons.map((l) => ({
-        id: l.id,
-        date: l.date,
-        status: l.status,
-        class: {
-          id: l.class.id,
-          name: l.class.name,
-          subject: l.class.subject,
-          level: l.class.level,
-          dayOfWeek: l.class.dayOfWeek,
-          startTime: l.class.startTime,
-          endTime: l.class.endTime,
-          teacher: l.class.teacher,
-          memberCount: l.class._count.members,
-        },
-        attendanceCount: l._count.attendances,
-      })),
-    });
+    res.json(range ? { from, to, lessons: lessons.map(toSummary) } : { date, lessons: lessons.map(toSummary) });
   } catch (e) {
     next(e);
   }

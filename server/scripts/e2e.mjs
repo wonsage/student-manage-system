@@ -261,6 +261,7 @@ async function main() {
   }
 
   // ===== 回归：问题 3 — 新建班当天即可点名 =====
+  const meta = await api("/api/meta");
   const newClass = await api("/api/classes", {
     method: "POST",
     token: AT,
@@ -268,7 +269,7 @@ async function main() {
       name: "新建测试班",
       subject: "测试",
       teacherId: science.teacher.id,
-      dayOfWeek: mathA.dayOfWeek,
+      dayOfWeek: meta.data.dayOfWeek, // 今天
       startTime: "09:00",
       endTime: "10:30",
       capacity: 10,

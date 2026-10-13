@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import { Spinner, Empty, Modal, useToast } from "../components/ui";
+import { Spinner, Empty, Modal, useToast, Avatar } from "../components/ui";
 import type { LessonDetail, RosterEntry } from "../types";
 import { ATTENDANCE_LABELS } from "../types";
+import { subjectColor, fmtMD } from "../theme";
 
 const ATT = ["PRESENT", "ABSENT", "LATE", "EXCUSED"] as const;
 
@@ -125,16 +126,29 @@ export function LessonDetailPage() {
     <div>
       <div className="page-head">
         <div>
-          <Link to="/" className="small muted">← 返回课程</Link>
-          <h1 style={{ marginTop: 4 }}>{lesson.class.name}</h1>
+          <Link to="/" className="back-link">← 返回课程</Link>
+          <h1 style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="ev-color" style={{ width: 6, height: 26, borderRadius: 3, background: subjectColor(lesson.class.subject) }} />
+            {lesson.class.name}
+          </h1>
           <div className="sub">
-            {lesson.date} · {lesson.class.startTime}-{lesson.class.endTime} ·{" "}
-            {lesson.class.teacher.name} · 已出勤 {presentCount}/{lesson.roster.length}
+            {fmtMD(lesson.date)} · {lesson.class.startTime}-{lesson.class.endTime} ·{" "}
+            {lesson.class.teacher.name} · {lesson.class.subject ?? ""}
           </div>
         </div>
         <button className="btn primary" onClick={markAll}>
           全员出勤
         </button>
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div className="flex between">
+          <span className="small muted">出勤进度</span>
+          <span className="small strong">{presentCount}/{lesson.roster.length} 人</span>
+        </div>
+        <div className="progress mt-8" style={{ height: 10 }}>
+          <span style={{ width: `${lesson.roster.length ? (presentCount / lesson.roster.length) * 100 : 0}%`, background: "var(--success)" }} />
+        </div>
       </div>
 
       <div className="card">
@@ -146,12 +160,13 @@ export function LessonDetailPage() {
             const att = entry.attendance?.status;
             return (
               <div key={st.id} className="roster-row" style={{ flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 160 }}>
-                  <div>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <Avatar name={st.name} size="sm" />
                     <span className="name">{st.name}</span>
                     {st.isNew && <span className="badge new-tag">⭐ 新学生</span>}
                   </div>
-                  <div className="meta">
+                  <div className="meta" style={{ paddingLeft: 38 }}>
                     {st.level || "—"} · 剩余 {st.remainingCredits} 课时
                   </div>
                 </div>
