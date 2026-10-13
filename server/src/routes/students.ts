@@ -33,7 +33,15 @@ studentsRouter.get("/", async (req, res, next) => {
       // teacher：只看到自己名下班级的成员
       where.memberships = { some: { class: { teacherId: me.id }, status: "ACTIVE" } };
     }
-    if (status) where.status = status;
+    if (status === "LOW_CREDITS") {
+      // 快捷筛选：快用完课时 = ENROLLED 且有 ACTIVE 报名余额 1~2
+      where.status = "ENROLLED";
+      where.enrollments = {
+        some: { status: "ACTIVE", creditsRemaining: { gt: 0, lte: 2 } },
+      };
+    } else if (status) {
+      where.status = status;
+    }
     if (q) where.name = { contains: q };
 
     const students = await prisma.student.findMany({

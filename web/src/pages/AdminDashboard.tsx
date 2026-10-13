@@ -42,11 +42,11 @@ export function AdminDashboard() {
       ) : (
         <>
           <div className="stats-grid">
-            <Link to="/students?filter=pendingTrial" className="stat-card">
+            <Link to="/students?status=TRIAL_DONE" className="stat-card">
               <div className="num">{stats.pendingTrial}</div>
               <div className="label">待跟进试听</div>
             </Link>
-            <Link to="/students?filter=lowCredits" className="stat-card">
+            <Link to="/students?status=LOW_CREDITS" className="stat-card">
               <div className="num">{stats.lowCredits}</div>
               <div className="label">快用完课时</div>
             </Link>

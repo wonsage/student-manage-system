@@ -5,13 +5,14 @@ import { Spinner, Empty, Modal, useToast } from "../components/ui";
 import type { Student, StudentStatus } from "../types";
 import { STATUS_LABELS } from "../types";
 
-const STATUS_OPTIONS: { value: "" | StudentStatus; label: string }[] = [
+const STATUS_OPTIONS: { value: "" | StudentStatus | "LOW_CREDITS"; label: string }[] = [
   { value: "", label: "全部状态" },
   { value: "LEAD", label: "咨询意向" },
   { value: "TRIAL_SCHEDULED", label: "已约试听" },
   { value: "TRIAL_DONE", label: "试听待跟进" },
   { value: "ENROLLED", label: "已报名" },
   { value: "CHURNED", label: "已流失" },
+  { value: "LOW_CREDITS", label: "快用完课时" },
 ];
 
 export function Students() {
@@ -19,7 +20,6 @@ export function Students() {
   const scope = params.get("scope") ?? "mine";
   const status = params.get("status") ?? "";
   const q = params.get("q") ?? "";
-  const filter = params.get("filter") ?? "";
 
   const [students, setStudents] = useState<Student[] | null>(null);
   const [error, setError] = useState("");
@@ -27,19 +27,15 @@ export function Students() {
   const [name, setName] = useState("");
   const toast = useToast();
 
-  // filter=lowCredits/pendingTrial 来自工作台快捷入口
-  const effectiveStatus =
-    filter === "pendingTrial" ? "TRIAL_DONE" : status;
-
   const load = () => {
     setStudents(null);
     api
-      .students({ scope, status: effectiveStatus, q })
+      .students({ scope, status, q })
       .then((res) => setStudents(res.students))
       .catch((e) => setError(e.message));
   };
 
-  useEffect(load, [scope, effectiveStatus, q]);
+  useEffect(load, [scope, status, q]);
 
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(params);
