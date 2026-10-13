@@ -59,12 +59,13 @@ npm run db:seed
 
 1. 先把仓库 push 到 GitHub（`git remote add` 后 push）。
 2. Vercel → **Add New Project** → 导入该仓库。
-3. 配置（**Build & Development Settings**）：
+3. 配置：构建参数已**写死在 `server/vercel.json`**（`framework: null`＝Other + `buildCommand: ""`＝跳过构建 + `outputDirectory: "public"`＋`public/.gitkeep` 占位），无需在后台手填。
    - **Root Directory**：`server`
    - **Framework Preset**：`Other`
-   - **Build Command：Override 并清空**。`Other` 预设默认会自动填 `npm run build`——本项目**不需要**（`api/index.ts` 这个 Serverless Function 由 Vercel 用 esbuild 自动打包，`tsc` 产出的 `dist/` 只在本地 `npm start` 用）。把默认值删掉、留空即可。**切勿填 `postinstall: prisma generate`**——那是 npm 安装时自动触发的钩子，填进去会报 `Command "postinstall: prisma generate" exited with 127`。
-   - **Output Directory：Override 并清空**。默认显示 `public`，本项目无静态产物，不清空会报 `No Output Directory named "public" found`。
+   - **Build Command / Output Directory**：在 **Build & Development Settings** 里把这两项的 **Override 开关关掉**，让 `vercel.json` 生效。⚠️ 后台的 Override 值**优先级高于 vercel.json**——若后台开着 Override 且是 `npm run build` / `public`，会覆盖掉 vercel.json 的配置。
    - **Install Command**：`npm install`（默认即可）
+
+   > 为什么这么配：本项目后端是纯 Serverless Function（入口 `api/index.ts`），不需要 `tsc`（`dist/` 只在本地 `npm start` 用）、也没有静态产物。所以跳过构建、用空 `public/` 目录满足输出检查即可。`postinstall: prisma generate` 在 `npm install` 阶段已自动执行，无需、也不可填进 Build Command。
 4. **Environment Variables**：
 
 | Key | 值 |
